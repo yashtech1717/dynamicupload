@@ -89,19 +89,21 @@ def init_firebase():
             logger.info(f"🔑 Loaded Firebase credentials from file: {service_account_path}")
 
         if cred:
-            storage_bucket_name = os.environ.get('FIREBASE_STORAGE_BUCKET', 'happybirthday-a287a.appspot.com')
+            storage_bucket_name = os.environ.get('FIREBASE_STORAGE_BUCKET', 'happybirthday-a287a.appspot.com').strip()
             if not firebase_admin._apps:
                 firebase_admin.initialize_app(cred, {
                     'storageBucket': storage_bucket_name
                 })
             firebase_initialized = True
             db_firestore = firestore.client()
-            firebase_bucket = storage.bucket()
-            logger.info("🔥 Firebase Storage & Firestore initialized successfully!")
+            firebase_bucket = storage.bucket(storage_bucket_name)
+            logger.info(f"🔥 Firebase Storage ({storage_bucket_name}) & Firestore initialized successfully!")
         else:
             logger.error("❌ CRITICAL: No Firebase credentials found. Please set FIREBASE_SERVICE_ACCOUNT env var!")
+            raise RuntimeError("CRITICAL: No Firebase credentials found. Please set FIREBASE_SERVICE_ACCOUNT environment variable.")
     except Exception as e:
         logger.error(f"❌ Firebase initialization error: {e}")
+        raise RuntimeError(f"Firebase initialization failed: {e}")
 
 # Call Firebase init
 init_firebase()
@@ -222,67 +224,39 @@ _DEFAULT_FRIEND_HASH = generate_password_hash(os.environ.get('FRIEND_PASSWORD', 
 def get_user_by_id(user_id):
     if not user_id:
         return None
-    if db_firestore:
-        try:
-            doc = db_firestore.collection('users').document(str(user_id)).get()
-            if doc.exists:
-                return FirestoreUser(doc.to_dict())
-            
-            target_id = int(user_id) if str(user_id).isdigit() else user_id
-            docs = db_firestore.collection('users').where('id', '==', target_id).limit(1).get()
-            for d in docs:
-                return FirestoreUser(d.to_dict())
-        except Exception as e:
-            logger.error(f"Error fetching user by id {user_id}: {e}")
-    
-    if str(user_id) in ('1', _DEFAULT_ADMIN_USER):
-        return FirestoreUser({
-            'id': 1, 'username': _DEFAULT_ADMIN_USER,
-            'password_hash': _DEFAULT_ADMIN_HASH,
-            'is_admin': True, 'is_friend': True
-        })
-    elif str(user_id) in ('2', _DEFAULT_FRIEND_USER):
-        return FirestoreUser({
-            'id': 2, 'username': _DEFAULT_FRIEND_USER,
-            'password_hash': _DEFAULT_FRIEND_HASH,
-            'is_admin': False, 'is_friend': True
-        })
-
-    return None
+    if not db_firestore:
+        raise RuntimeError("Firestore is unavailable. Database connection failed.")
+    try:
+        doc = db_firestore.collection('users').document(str(user_id)).get()
+        if doc.exists:
+            return FirestoreUser(doc.to_dict())
+        
+        target_id = int(user_id) if str(user_id).isdigit() else user_id
+        docs = db_firestore.collection('users').where('id', '==', target_id).limit(1).get()
+        for d in docs:
+            return FirestoreUser(d.to_dict())
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching user by id {user_id}: {e}")
+        raise RuntimeError(f"Firestore read error fetching user {user_id}: {e}")
 
 def get_user_by_username(username):
     if not username:
         return None
-    if db_firestore:
-        try:
-            docs = db_firestore.collection('users').where('username', '==', username.strip()).limit(1).get()
-            for doc in docs:
-                return FirestoreUser(doc.to_dict())
-        except Exception as e:
-            logger.error(f"Error fetching user by username {username}: {e}")
-
-    clean_u = username.strip().lower()
-    if clean_u == _DEFAULT_ADMIN_USER.lower():
-        return FirestoreUser({
-            'id': 1, 'username': _DEFAULT_ADMIN_USER,
-            'password_hash': _DEFAULT_ADMIN_HASH,
-            'is_admin': True, 'is_friend': True
-        })
-    elif clean_u == _DEFAULT_FRIEND_USER.lower():
-        return FirestoreUser({
-            'id': 2, 'username': _DEFAULT_FRIEND_USER,
-            'password_hash': _DEFAULT_FRIEND_HASH,
-            'is_admin': False, 'is_friend': True
-        })
-
-    return None
+    if not db_firestore:
+        raise RuntimeError("Firestore is unavailable. Database connection failed.")
+    try:
+        docs = db_firestore.collection('users').where('username', '==', username.strip()).limit(1).get()
+        for doc in docs:
+            return FirestoreUser(doc.to_dict())
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching user by username {username}: {e}")
+        raise RuntimeError(f"Firestore read error fetching user {username}: {e}")
 
 def get_all_users():
     if not db_firestore:
-        return [
-            FirestoreUser({'id': 1, 'username': _DEFAULT_ADMIN_USER, 'password_hash': _DEFAULT_ADMIN_HASH, 'is_admin': True, 'is_friend': True}),
-            FirestoreUser({'id': 2, 'username': _DEFAULT_FRIEND_USER, 'password_hash': _DEFAULT_FRIEND_HASH, 'is_admin': False, 'is_friend': True})
-        ]
+        raise RuntimeError("Firestore is unavailable. Database connection failed.")
     try:
         docs = db_firestore.collection('users').get()
         users = [FirestoreUser(doc.to_dict()) for doc in docs]
@@ -290,7 +264,7 @@ def get_all_users():
         return users
     except Exception as e:
         logger.error(f"Error fetching all users: {e}")
-        return []
+        raise RuntimeError(f"Firestore read error fetching all users: {e}")
 
 def save_user(user_dict):
     if not db_firestore or not user_dict or not user_dict.get('id'):
