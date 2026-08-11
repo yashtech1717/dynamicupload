@@ -144,6 +144,27 @@ class SafeDateTime:
             return self.dt.strftime(fmt)
         return str(self.val)[:16] if self.val else 'N/A'
 
+    def __lt__(self, other):
+        t1 = self.dt or datetime.min
+        t2 = getattr(other, 'dt', None) or (other if isinstance(other, datetime) else datetime.min)
+        return t1 < t2
+
+    def __gt__(self, other):
+        t1 = self.dt or datetime.min
+        t2 = getattr(other, 'dt', None) or (other if isinstance(other, datetime) else datetime.min)
+        return t1 > t2
+
+    def __le__(self, other):
+        return not (self > other)
+
+    def __ge__(self, other):
+        return not (self < other)
+
+    def __eq__(self, other):
+        t1 = self.dt or datetime.min
+        t2 = getattr(other, 'dt', None) or (other if isinstance(other, datetime) else datetime.min)
+        return t1 == t2
+
     def __str__(self):
         return self.strftime()
 
@@ -424,33 +445,35 @@ def get_replies_for_question(question_id):
         return []
 
 def get_all_replies():
-    if not db_firestore:
-        return []
-    try:
-        users_map = {str(u.id): u for u in get_all_users()}
-        docs = db_firestore.collection('replies').get()
-        
-        q_docs = db_firestore.collection('questions').get()
-        q_map = {str(qd.to_dict().get('id')): qd.to_dict() for qd in q_docs}
+    def _fetch():
+        if not db_firestore:
+            return []
+        try:
+            users_map = {str(u.id): u for u in get_all_users()}
+            docs = db_firestore.collection('replies').get()
+            
+            q_docs = db_firestore.collection('questions').get()
+            q_map = {str(qd.to_dict().get('id')): qd.to_dict() for qd in q_docs}
 
-        replies = []
-        for doc in docs:
-            d = doc.to_dict()
-            u_id = str(d.get('user_id'))
-            replier = users_map.get(u_id)
-            if replier:
-                d['replier'] = {'username': replier.username, 'id': replier.id}
-            
-            q_id = str(d.get('question_id'))
-            if q_id in q_map:
-                d['question'] = q_map[q_id]
-            replies.append(FirestoreDoc(d))
-            
-        replies.sort(key=lambda r: r.created_at if isinstance(r.created_at, datetime) else datetime.min)
-        return replies
-    except Exception as e:
-        logger.error(f"Error fetching all replies: {e}")
-        return []
+            replies = []
+            for doc in docs:
+                d = doc.to_dict()
+                u_id = str(d.get('user_id'))
+                replier = users_map.get(u_id)
+                if replier:
+                    d['replier'] = {'username': replier.username, 'id': replier.id}
+                
+                q_id = str(d.get('question_id'))
+                if q_id in q_map:
+                    d['question'] = q_map[q_id]
+                replies.append(FirestoreDoc(d))
+                
+            replies.sort(key=lambda r: getattr(r, 'created_at', datetime.min), reverse=True)
+            return replies
+        except Exception as e:
+            logger.error(f"Error fetching all replies: {e}")
+            return []
+    return get_cached('all_replies', _fetch, ttl=10)
 
 def save_reply(r_dict):
     if not db_firestore:
@@ -466,6 +489,7 @@ def save_reply(r_dict):
         
         clean_dict = {k: v for k, v in r_dict.items() if k not in ('replier', 'question')}
         db_firestore.collection('replies').document(r_id).set(clean_dict, merge=True)
+        invalidate_cache('all_replies')
         logger.info(f"🔥 Reply {r_id} saved to Firestore")
         return FirestoreDoc(r_dict)
     except Exception as e:
@@ -484,6 +508,7 @@ def delete_reply_doc(reply_id):
                 if url:
                     delete_file_from_firebase(url)
             db_firestore.collection('replies').document(str(reply_id)).delete()
+            invalidate_cache('all_replies')
             logger.info(f"🔥 Reply {reply_id} deleted from Firestore")
             return True
     except Exception as e:
@@ -496,7 +521,7 @@ def get_all_typing_texts():
     try:
         docs = db_firestore.collection('typing_texts').get()
         texts = [FirestoreDoc(doc.to_dict()) for doc in docs]
-        texts.sort(key=lambda t: t.created_at if isinstance(t.created_at, datetime) else datetime.min, reverse=True)
+        texts.sort(key=lambda t: getattr(t, 'created_at', datetime.min), reverse=True)
         return texts
     except Exception as e:
         logger.error(f"Error fetching typing texts: {e}")
