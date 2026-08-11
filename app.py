@@ -1191,6 +1191,11 @@ def ask_question():
         
         save_question(q_data)
         
+        all_q = get_all_questions()
+        if all_q:
+            session['current_question_index'] = max(0, len(all_q) - 1)
+            session.modified = True
+        
         msg = 'Question asked successfully!' + (' Answer added!' if answer_text else '')
         if upload_warnings:
             flash(f"{msg} ({' '.join(upload_warnings)})", 'warning')
