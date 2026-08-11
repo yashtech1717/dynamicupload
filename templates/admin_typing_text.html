@@ -12,10 +12,14 @@
     Only one text can be active at a time.
 </p>
 
-<!-- Add New Typing Text -->
-<div style="padding: 22px; border-radius: 20px; background: var(--bg-primary); box-shadow: var(--card-shadow); margin-bottom: 25px; border-left: 5px solid var(--accent-purple);">
-    <h4 style="color: var(--text-secondary); margin-bottom: 15px; font-size: 18px; font-weight: 800;">➕ Add / Edit Typing Text</h4>
-    <form method="post" style="display: flex; flex-direction: column; gap: 15px;">
+<!-- Add / Edit Typing Text -->
+<div id="typingFormCard" style="padding: 22px; border-radius: 20px; background: var(--bg-primary); box-shadow: var(--card-shadow); margin-bottom: 25px; border-left: 5px solid var(--accent-purple);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap;">
+        <h4 id="formHeaderTitle" style="color: var(--text-secondary); margin: 0; font-size: 18px; font-weight: 800;">➕ Add / Edit Typing Text</h4>
+        <span id="editingBadge" style="display: none; background: var(--accent-purple); color: white; padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 700;">✏️ Editing Active Message</span>
+    </div>
+
+    <form id="adminTypingForm" method="post" action="{{ url_for('admin_typing_text') }}" style="display: flex; flex-direction: column; gap: 15px;">
         <div>
             <label style="font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 8px;">Typing Message Text (supports line breaks)</label>
             <textarea id="adminTypingInput" name="typing_text" required placeholder="Enter text that will be displayed with typing animation..." 
@@ -35,8 +39,9 @@
             </div>
         </div>
 
-        <div style="display: flex; gap: 12px; margin-top: 5px;">
-            <button type="submit" class="btn btn-success btn-lg" style="padding: 14px 30px; font-weight: 700; font-size: 15px;">💾 Save & Activate Message</button>
+        <div style="display: flex; gap: 12px; margin-top: 5px; flex-wrap: wrap;">
+            <button id="formSubmitBtn" type="submit" class="btn btn-success btn-lg" style="padding: 14px 30px; font-weight: 700; font-size: 15px;">💾 Save & Activate Message</button>
+            <button id="cancelEditBtn" type="button" onclick="cancelEditMode()" class="btn btn-secondary btn-lg" style="display: none; padding: 14px 20px; font-weight: 700; font-size: 14px;">← Cancel Edit</button>
         </div>
     </form>
 </div>
@@ -81,6 +86,40 @@ function testAdminAnimation() {
     }
     step();
 }
+
+function editTypingText(id, rawText) {
+    const form = document.getElementById('adminTypingForm');
+    const input = document.getElementById('adminTypingInput');
+    const submitBtn = document.getElementById('formSubmitBtn');
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    const badge = document.getElementById('editingBadge');
+    const formCard = document.getElementById('typingFormCard');
+
+    if (form && input) {
+        form.action = `/admin/typing-text/${id}/edit`;
+        input.value = rawText;
+        if (submitBtn) submitBtn.textContent = '💾 Update & Save Changes';
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        if (badge) badge.style.display = 'inline-block';
+        
+        if (formCard) {
+            formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+}
+
+function cancelEditMode() {
+    const form = document.getElementById('adminTypingForm');
+    const input = document.getElementById('adminTypingInput');
+    const submitBtn = document.getElementById('formSubmitBtn');
+    const cancelBtn = document.getElementById('cancelEditBtn');
+    const badge = document.getElementById('editingBadge');
+
+    if (form) form.action = "{{ url_for('admin_typing_text') }}";
+    if (submitBtn) submitBtn.textContent = '💾 Save & Activate Message';
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    if (badge) badge.style.display = 'none';
+}
 </script>
 
 <!-- All Typing Texts -->
@@ -92,18 +131,21 @@ function testAdminAnimation() {
         <div style="padding: 14px 18px; border-radius: 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
             <div style="flex: 1;">
                 <div style="color: var(--text-secondary); font-size: 15px; line-height: 1.6; padding: 8px 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-radius: 10px; white-space: pre-wrap;">
-                    {{ text.text|truncate(150) }}
+                    {{ text.text }}
                 </div>
                 <div style="margin-top: 5px; font-size: 12px; color: var(--text-muted);">
                     Created: {{ text.created_at.strftime('%Y-%m-%d %H:%M') }}
                 </div>
             </div>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
                 {% if text.is_active %}
                 <span style="background: var(--accent-green); color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;">✅ Active</span>
                 {% else %}
                 <a href="{{ url_for('admin_activate_typing_text', text_id=text.id) }}" class="btn btn-sm btn-primary" style="padding: 4px 12px; font-size: 11px; text-decoration: none;">▶️ Activate</a>
                 {% endif %}
+                <button type="button" onclick="editTypingText({{ text.id }}, {{ text.text|tojson }})" class="btn btn-sm btn-warning" style="padding: 4px 12px; font-size: 11px; border: none; cursor: pointer; border-radius: 10px; font-weight: 700;">
+                    ✏️ Edit
+                </button>
                 <form method="post" action="{{ url_for('admin_delete_typing_text', text_id=text.id) }}" style="display: inline;" onsubmit="return confirm('Delete this typing text?');">
                     <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 11px;">🗑️</button>
                 </form>

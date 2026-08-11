@@ -1005,6 +1005,20 @@ def admin_activate_typing_text(text_id):
     flash('Typing text activated!', 'success')
     return redirect(url_for('admin_typing_text'))
 
+@app.route('/admin/typing-text/<int:text_id>/edit', methods=['POST'])
+@login_required
+@admin_required
+def admin_edit_typing_text(text_id):
+    typing_obj = TypingText.query.get_or_404(text_id)
+    text_content = request.form.get('typing_text', '').strip()
+    if text_content:
+        typing_obj.text = text_content
+        db.session.commit()
+        flash('Typing message updated successfully!', 'success')
+    else:
+        flash('Text content cannot be empty.', 'danger')
+    return redirect(url_for('admin_typing_text'))
+
 @app.route('/admin/typing-text/<int:text_id>/delete', methods=['POST'])
 @login_required
 @admin_required
