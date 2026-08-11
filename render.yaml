@@ -10,14 +10,5 @@ services:
         value: 3.11.8
       - key: SECRET_KEY
         generateValue: true
-      - key: DATABASE_URL
-        fromDatabase:
-          name: yash-world-db
-          property: connectionString
       - key: FIREBASE_STORAGE_BUCKET
         value: happybirthday-a287a.appspot.com
-
-databases:
-  - name: yash-world-db
-    databaseName: yash_world
-    user: yash_user
