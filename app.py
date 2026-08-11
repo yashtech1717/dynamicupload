@@ -106,6 +106,23 @@ def init_firebase():
 # Call Firebase init
 init_firebase()
 
+@app.template_filter('format_datetime')
+def format_datetime_filter(value, fmt='%d %b %Y, %H:%M'):
+    if not value:
+        return 'N/A'
+    if hasattr(value, 'strftime'):
+        try:
+            return value.strftime(fmt)
+        except Exception:
+            pass
+    if isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+            return dt.strftime(fmt)
+        except Exception:
+            return value[:16]
+    return str(value)
+
 # ============================================================
 # FIRESTORE DATA WRAPPER & HELPER CLASSES
 # ============================================================

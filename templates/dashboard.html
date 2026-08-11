@@ -1006,7 +1006,8 @@ function hideTyping() {
 function toggleFeedback() {
     const section = document.getElementById('feedbackSection');
     if (section) {
-        if (section.style.display === 'none' || section.style.display === '') {
+        const isHidden = getComputedStyle(section).display === 'none';
+        if (isHidden) {
             section.style.display = 'block';
             setTimeout(() => {
                 section.scrollIntoView({ behavior: 'smooth', block: 'start' });

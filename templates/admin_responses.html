@@ -50,7 +50,7 @@
                     📊 Response #{{ loop.index }}
                 </span>
                 <span style="color: var(--text-muted); font-size: 13px; font-weight: 600;">
-                    🕒 Submitted: {{ reply.created_at.strftime('%d %b %Y, %H:%M') }}
+                    🕒 Submitted: {{ reply.created_at|format_datetime }}
                 </span>
             </div>
 
