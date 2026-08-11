@@ -772,7 +772,11 @@ def upload_file_to_firebase(file, media_type='video'):
             last_error = e
             logger.warning(f"Failed upload attempt to bucket '{b_name}': {e}")
 
-    raise RuntimeError(f"Firebase Storage upload failed: {last_error}")
+    err_msg = str(last_error)
+    if '404' in err_msg or 'does not exist' in err_msg:
+        raise RuntimeError("Firebase Storage bucket is not enabled yet in your Firebase Console. Please go to Firebase Console -> Storage -> Click 'Get Started'.")
+    else:
+        raise RuntimeError(f"Firebase Storage upload error: {err_msg}")
 
 def delete_file_from_firebase(url_or_path):
     if not firebase_initialized or not firebase_bucket or not url_or_path:
