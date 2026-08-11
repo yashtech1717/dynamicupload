@@ -141,12 +141,12 @@ function cancelEditMode() {
                 {% if text.is_active %}
                 <span style="background: var(--accent-green); color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;">✅ Active</span>
                 {% else %}
-                <a href="{{ url_for('admin_activate_typing_text', text_id=text.id) }}" class="btn btn-sm btn-primary" style="padding: 4px 12px; font-size: 11px; text-decoration: none;">▶️ Activate</a>
+                <a href="{{ url_for('admin_activate_typing_text', text_id=text.id or 1) }}" class="btn btn-sm btn-primary" style="padding: 4px 12px; font-size: 11px; text-decoration: none;">▶️ Activate</a>
                 {% endif %}
-                <button type="button" onclick="editTypingText({{ text.id }}, {{ text.text|tojson }})" class="btn btn-sm btn-warning" style="padding: 4px 12px; font-size: 11px; border: none; cursor: pointer; border-radius: 10px; font-weight: 700;">
+                <button type="button" onclick="editTypingText({{ text.id or 1 }}, {{ text.text|tojson }})" class="btn btn-sm btn-warning" style="padding: 4px 12px; font-size: 11px; border: none; cursor: pointer; border-radius: 10px; font-weight: 700;">
                     ✏️ Edit
                 </button>
-                <form method="post" action="{{ url_for('admin_delete_typing_text', text_id=text.id) }}" style="display: inline;" onsubmit="return confirm('Delete this typing text?');">
+                <form method="post" action="{{ url_for('admin_delete_typing_text', text_id=text.id or 1) }}" style="display: inline;" onsubmit="return confirm('Delete this typing text?');">
                     <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 11px;">🗑️</button>
                 </form>
             </div>

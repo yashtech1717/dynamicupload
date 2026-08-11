@@ -520,7 +520,12 @@ def get_all_typing_texts():
         return []
     try:
         docs = db_firestore.collection('typing_texts').get()
-        texts = [FirestoreDoc(doc.to_dict()) for doc in docs]
+        texts = []
+        for doc in docs:
+            d = doc.to_dict()
+            if 'id' not in d or not d['id']:
+                d['id'] = int(doc.id) if str(doc.id).isdigit() else 1
+            texts.append(FirestoreDoc(d))
         texts.sort(key=lambda t: getattr(t, 'created_at', datetime.min), reverse=True)
         return texts
     except Exception as e:

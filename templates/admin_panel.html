@@ -121,8 +121,8 @@
             </div>
             <div style="display: flex; gap: 10px; align-items: center;">
                 {% if text.is_active %}<span style="background: var(--accent-green); color: white; padding: 2px 12px; border-radius: 20px; font-size: 12px;">✅ Active</span>
-                {% else %}<a href="{{ url_for('admin_activate_typing_text', text_id=text.id) }}" class="btn btn-sm btn-primary" style="padding: 4px 12px; font-size: 12px; min-width: auto;">Activate</a>{% endif %}
-                <form method="post" action="{{ url_for('admin_delete_typing_text', text_id=text.id) }}" style="display: inline;" onsubmit="return confirm('Delete this typing text?');">
+                {% else %}<a href="{{ url_for('admin_activate_typing_text', text_id=text.id or 1) }}" class="btn btn-sm btn-primary" style="padding: 4px 12px; font-size: 12px; min-width: auto;">Activate</a>{% endif %}
+                <form method="post" action="{{ url_for('admin_delete_typing_text', text_id=text.id or 1) }}" style="display: inline;" onsubmit="return confirm('Delete this typing text?');">
                     <button type="submit" class="btn btn-sm btn-danger" style="padding: 4px 12px; font-size: 12px; min-width: auto;">🗑️</button>
                 </form>
             </div>
