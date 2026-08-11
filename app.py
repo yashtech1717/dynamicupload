@@ -1678,11 +1678,12 @@ def seed_firestore_defaults():
     except Exception as e:
         logger.error(f"Error seeding Firestore defaults: {e}")
 
-# Seed defaults on app import
+# Seed defaults asynchronously in a background thread to ensure instant Gunicorn boot
+import threading
 try:
-    seed_firestore_defaults()
+    threading.Thread(target=seed_firestore_defaults, daemon=True).start()
 except Exception as e:
-    logger.error(f"Error in seed_firestore_defaults: {e}")
+    logger.error(f"Error in seed_firestore_defaults background launch: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
