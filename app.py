@@ -1082,98 +1082,122 @@ def ask_question():
             'is_answered': False
         }
         
-        try:
-            if 'image' in request.files and request.files['image'].filename:
-                file = request.files['image']
-                if is_allowed_image(file.filename):
+        upload_warnings = []
+        
+        if 'image' in request.files and request.files['image'].filename:
+            file = request.files['image']
+            if is_allowed_image(file.filename):
+                try:
                     url, fname = upload_file_to_firebase(file, 'image')
                     if url:
                         q_data['image_data'] = url
                         q_data['image_filename'] = fname
-            
-            image_url = request.form.get('image_url', '').strip()
-            if image_url and not q_data.get('image_data'):
-                q_data['image_data'] = get_media_url(image_url, 'image')
-                q_data['image_filename'] = request.form.get('image_filename', 'external_image')
-            
-            if 'video' in request.files and request.files['video'].filename:
-                file = request.files['video']
-                if is_allowed_video(file.filename):
+                except Exception as e:
+                    logger.warning(f"Image upload warning: {e}")
+                    upload_warnings.append("Image upload skipped (Activate Storage in Firebase Console -> Storage).")
+        
+        image_url = request.form.get('image_url', '').strip()
+        if image_url and not q_data.get('image_data'):
+            q_data['image_data'] = get_media_url(image_url, 'image')
+            q_data['image_filename'] = request.form.get('image_filename', 'external_image')
+        
+        if 'video' in request.files and request.files['video'].filename:
+            file = request.files['video']
+            if is_allowed_video(file.filename):
+                try:
                     url, fname = upload_file_to_firebase(file, 'video')
                     if url:
                         q_data['video_data'] = url
                         q_data['video_filename'] = fname
-            
-            video_url = request.form.get('video_url', '').strip()
-            if video_url and not q_data.get('video_data'):
-                q_data['video_data'] = get_media_url(video_url, 'video')
-                q_data['video_filename'] = request.form.get('video_filename', 'external_video')
-            
-            if 'audio' in request.files and request.files['audio'].filename:
-                file = request.files['audio']
-                if is_allowed_audio(file.filename):
+                except Exception as e:
+                    logger.warning(f"Video upload warning: {e}")
+                    upload_warnings.append("Video upload skipped (Activate Storage in Firebase Console -> Storage).")
+        
+        video_url = request.form.get('video_url', '').strip()
+        if video_url and not q_data.get('video_data'):
+            q_data['video_data'] = get_media_url(video_url, 'video')
+            q_data['video_filename'] = request.form.get('video_filename', 'external_video')
+        
+        if 'audio' in request.files and request.files['audio'].filename:
+            file = request.files['audio']
+            if is_allowed_audio(file.filename):
+                try:
                     url, fname = upload_file_to_firebase(file, 'audio')
                     if url:
                         q_data['audio_data'] = url
                         q_data['audio_filename'] = fname
+                except Exception as e:
+                    logger.warning(f"Audio upload warning: {e}")
+                    upload_warnings.append("Audio upload skipped (Activate Storage in Firebase Console -> Storage).")
+        
+        audio_url = request.form.get('audio_url', '').strip()
+        if audio_url and not q_data.get('audio_data'):
+            q_data['audio_data'] = get_media_url(audio_url, 'audio')
+            q_data['audio_filename'] = request.form.get('audio_filename', 'external_audio')
+        
+        answer_text = request.form.get('answer_text', '').strip()
+        if answer_text:
+            q_data['answer_text'] = answer_text
+            q_data['has_answer'] = True
+            q_data['is_answered'] = True
             
-            audio_url = request.form.get('audio_url', '').strip()
-            if audio_url and not q_data.get('audio_data'):
-                q_data['audio_data'] = get_media_url(audio_url, 'audio')
-                q_data['audio_filename'] = request.form.get('audio_filename', 'external_audio')
-            
-            answer_text = request.form.get('answer_text', '').strip()
-            if answer_text:
-                q_data['answer_text'] = answer_text
-                q_data['has_answer'] = True
-                q_data['is_answered'] = True
-                
-                if 'answer_image' in request.files and request.files['answer_image'].filename:
-                    file = request.files['answer_image']
-                    if is_allowed_image(file.filename):
+            if 'answer_image' in request.files and request.files['answer_image'].filename:
+                file = request.files['answer_image']
+                if is_allowed_image(file.filename):
+                    try:
                         url, fname = upload_file_to_firebase(file, 'image')
                         if url:
                             q_data['answer_image_data'] = url
                             q_data['answer_image_filename'] = fname
-                
-                answer_image_url = request.form.get('answer_image_url', '').strip()
-                if answer_image_url and not q_data.get('answer_image_data'):
-                    q_data['answer_image_data'] = get_media_url(answer_image_url, 'image')
-                    q_data['answer_image_filename'] = request.form.get('answer_image_filename', 'external_answer_image')
-                
-                if 'answer_video' in request.files and request.files['answer_video'].filename:
-                    file = request.files['answer_video']
-                    if is_allowed_video(file.filename):
+                    except Exception as e:
+                        logger.warning(f"Answer image upload warning: {e}")
+            
+            answer_image_url = request.form.get('answer_image_url', '').strip()
+            if answer_image_url and not q_data.get('answer_image_data'):
+                q_data['answer_image_data'] = get_media_url(answer_image_url, 'image')
+                q_data['answer_image_filename'] = request.form.get('answer_image_filename', 'external_answer_image')
+            
+            if 'answer_video' in request.files and request.files['answer_video'].filename:
+                file = request.files['answer_video']
+                if is_allowed_video(file.filename):
+                    try:
                         url, fname = upload_file_to_firebase(file, 'video')
                         if url:
                             q_data['answer_video_data'] = url
                             q_data['answer_video_filename'] = fname
-                
-                answer_video_url = request.form.get('answer_video_url', '').strip()
-                if answer_video_url and not q_data.get('answer_video_data'):
-                    q_data['answer_video_data'] = get_media_url(answer_video_url, 'video')
-                    q_data['answer_video_filename'] = request.form.get('answer_video_filename', 'external_answer_video')
-                
-                if 'answer_audio' in request.files and request.files['answer_audio'].filename:
-                    file = request.files['answer_audio']
-                    if is_allowed_audio(file.filename):
+                    except Exception as e:
+                        logger.warning(f"Answer video upload warning: {e}")
+            
+            answer_video_url = request.form.get('answer_video_url', '').strip()
+            if answer_video_url and not q_data.get('answer_video_data'):
+                q_data['answer_video_data'] = get_media_url(answer_video_url, 'video')
+                q_data['answer_video_filename'] = request.form.get('answer_video_filename', 'external_answer_video')
+            
+            if 'answer_audio' in request.files and request.files['answer_audio'].filename:
+                file = request.files['answer_audio']
+                if is_allowed_audio(file.filename):
+                    try:
                         url, fname = upload_file_to_firebase(file, 'audio')
                         if url:
                             q_data['answer_audio_data'] = url
                             q_data['answer_audio_filename'] = fname
-                
-                answer_audio_url = request.form.get('answer_audio_url', '').strip()
-                if answer_audio_url and not q_data.get('answer_audio_data'):
-                    q_data['answer_audio_data'] = get_media_url(answer_audio_url, 'audio')
-                    q_data['answer_audio_filename'] = request.form.get('answer_audio_filename', 'external_answer_audio')
+                    except Exception as e:
+                        logger.warning(f"Answer audio upload warning: {e}")
             
-            save_question(q_data)
-            flash('Question asked successfully!' + (' Answer added!' if answer_text else ''), 'success')
-            return redirect(url_for('dashboard'))
-        except Exception as e:
-            logger.error(f"Error asking question: {e}")
-            flash(f'Failed to ask question: {str(e)}', 'danger')
-            return redirect(url_for('ask_question'))
+            answer_audio_url = request.form.get('answer_audio_url', '').strip()
+            if answer_audio_url and not q_data.get('answer_audio_data'):
+                q_data['answer_audio_data'] = get_media_url(answer_audio_url, 'audio')
+                q_data['answer_audio_filename'] = request.form.get('answer_audio_filename', 'external_answer_audio')
+        
+        save_question(q_data)
+        
+        msg = 'Question asked successfully!' + (' Answer added!' if answer_text else '')
+        if upload_warnings:
+            flash(f"{msg} ({' '.join(upload_warnings)})", 'warning')
+        else:
+            flash(msg, 'success')
+            
+        return redirect(url_for('dashboard'))
     
     return render_template('ask.html')
 
@@ -1202,55 +1226,69 @@ def reply_question(question_id):
             'text': text
         }
         
-        try:
-            if 'image' in request.files and request.files['image'].filename:
-                file = request.files['image']
-                if is_allowed_image(file.filename):
+        upload_warnings = []
+        
+        if 'image' in request.files and request.files['image'].filename:
+            file = request.files['image']
+            if is_allowed_image(file.filename):
+                try:
                     url, fname = upload_file_to_firebase(file, 'image')
                     if url:
                         r_data['image_data'] = url
                         r_data['image_filename'] = fname
-            
-            image_url = request.form.get('image_url', '').strip()
-            if image_url and not r_data.get('image_data'):
-                r_data['image_data'] = get_media_url(image_url, 'image')
-                r_data['image_filename'] = request.form.get('image_filename', 'external_image')
-            
-            if 'video' in request.files and request.files['video'].filename:
-                file = request.files['video']
-                if is_allowed_video(file.filename):
+                except Exception as e:
+                    logger.warning(f"Reply image upload warning: {e}")
+                    upload_warnings.append("Image upload skipped.")
+        
+        image_url = request.form.get('image_url', '').strip()
+        if image_url and not r_data.get('image_data'):
+            r_data['image_data'] = get_media_url(image_url, 'image')
+            r_data['image_filename'] = request.form.get('image_filename', 'external_image')
+        
+        if 'video' in request.files and request.files['video'].filename:
+            file = request.files['video']
+            if is_allowed_video(file.filename):
+                try:
                     url, fname = upload_file_to_firebase(file, 'video')
                     if url:
                         r_data['video_data'] = url
                         r_data['video_filename'] = fname
-            
-            video_url = request.form.get('video_url', '').strip()
-            if video_url and not r_data.get('video_data'):
-                r_data['video_data'] = get_media_url(video_url, 'video')
-                r_data['video_filename'] = request.form.get('video_filename', 'external_video')
-            
-            if 'audio' in request.files and request.files['audio'].filename:
-                file = request.files['audio']
-                if is_allowed_audio(file.filename):
+                except Exception as e:
+                    logger.warning(f"Reply video upload warning: {e}")
+                    upload_warnings.append("Video upload skipped.")
+        
+        video_url = request.form.get('video_url', '').strip()
+        if video_url and not r_data.get('video_data'):
+            r_data['video_data'] = get_media_url(video_url, 'video')
+            r_data['video_filename'] = request.form.get('video_filename', 'external_video')
+        
+        if 'audio' in request.files and request.files['audio'].filename:
+            file = request.files['audio']
+            if is_allowed_audio(file.filename):
+                try:
                     url, fname = upload_file_to_firebase(file, 'audio')
                     if url:
                         r_data['audio_data'] = url
                         r_data['audio_filename'] = fname
+                except Exception as e:
+                    logger.warning(f"Reply audio upload warning: {e}")
+                    upload_warnings.append("Audio upload skipped.")
+        
+        audio_url = request.form.get('audio_url', '').strip()
+        if audio_url and not r_data.get('audio_data'):
+            r_data['audio_data'] = get_media_url(audio_url, 'audio')
+            r_data['audio_filename'] = request.form.get('audio_filename', 'external_audio')
+        
+        save_reply(r_data)
+        save_question({'id': int(question_id), 'is_answered': True})
+        
+        msg = 'Reply sent successfully! Your response has been sent to the Admin Dashboard.'
+        if upload_warnings:
+            flash(f"{msg} ({' '.join(upload_warnings)})", 'warning')
+        else:
+            flash(msg, 'success')
             
-            audio_url = request.form.get('audio_url', '').strip()
-            if audio_url and not r_data.get('audio_data'):
-                r_data['audio_data'] = get_media_url(audio_url, 'audio')
-                r_data['audio_filename'] = request.form.get('audio_filename', 'external_audio')
-            
-            save_reply(r_data)
-            save_question({'id': int(question_id), 'is_answered': True})
-            
-            flash('Reply sent successfully! Your response has been sent to the Admin Dashboard.', 'success')
-            return redirect(url_for('dashboard'))
-        except Exception as e:
-            logger.error(f"Error submitting reply: {e}")
-            flash(f'Failed to submit reply: {str(e)}', 'danger')
-            return redirect(url_for('reply_question', question_id=question_id))
+        return redirect(url_for('dashboard'))
     
     return render_template('reply.html', question=question)
 
