@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .ask-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .storage-info {
+        background: rgba(79, 124, 255, 0.08);
+        padding: 16px 20px;
+        border-radius: 16px;
+        margin-bottom: 24px;
+        border-left: 4px solid #4f7cff;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+    
+    .storage-info-icon {
+        font-size: 28px;
+    }
+    
+    .storage-info h4 {
+        color: #2d3748;
+        margin: 0 0 4px 0;
+        font-size: 15px;
+    }
+    
+    .storage-info p {
+        margin: 0;
+        font-size: 13px;
+        color: #4a5568;
+        line-height: 1.5;
+    }
+    
+    .form-section {
+        padding: 24px;
+        border-radius: 16px;
+        background: #f0f4fa;
+        box-shadow: inset 4px 4px 12px #d3d8de, inset -4px -4px 12px #ffffff;
+        margin-bottom: 20px;
+    }
+    
+    .form-section-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 18px;
+    }
+    
+    .form-section-title h4 {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 700;
+        color: #2d3748;
+    }
+    
+    .form-section-title .badge {
+        font-size: 11px;
+        padding: 2px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+    }
+    
+    .badge-required {
+        background: #e53e3e;
+        color: white;
+    }
+    
+    .badge-optional {
+        background: #718096;
+        color: white;
+    }
+    
+    .form-group {
+        margin-bottom: 16px;
+    }
+    
+    .form-group:last-child {
+        margin-bottom: 0;
+    }
+    
+    .form-group label {
+        display: block;
+        font-weight: 600;
+        color: #2d3748;
+        margin-bottom: 6px;
+        font-size: 14px;
+    }
+    
+    .form-group input[type="text"],
+    .form-group input[type="url"],
+    .form-group textarea {
+        width: 100%;
+        padding: 14px 18px;
+        border: none;
+        border-radius: 14px;
+        background: #eef2f7;
+        box-shadow: inset 4px 4px 8px #d3d8de, inset -4px -4px 8px #ffffff;
+        font-family: inherit;
+        font-size: 15px;
+        transition: all 0.2s ease;
+        color: #2d3748;
+        outline: none;
+        box-sizing: border-box;
+    }
+    
+    .file-input-wrapper {
+        position: relative;
+        background: #eef2f7;
+        box-shadow: inset 4px 4px 8px #d3d8de, inset -4px -4px 8px #ffffff;
+        border-radius: 14px;
+        padding: 14px 18px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .file-input-wrapper:hover {
+        background: #e2e8f0;
+    }
+    
+    .file-input-wrapper input[type="file"] {
+        width: 100%;
+        cursor: pointer;
+    }
+    
+    .form-group textarea {
+        resize: vertical;
+        min-height: 80px;
+    }
+    
+    .form-group .helper-text {
+        font-size: 12px;
+        color: #718096;
+        margin-top: 4px;
+    }
+    
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+    
+    .form-actions {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+    }
+    
+    .btn {
+        padding: 14px 32px;
+        border: none;
+        border-radius: 16px;
+        font-weight: 700;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        text-align: center;
+        font-family: inherit;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: center;
+        min-width: 140px;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #4f7cff, #6c5ce7);
+        color: white;
+        box-shadow: 0 4px 15px rgba(79, 124, 255, 0.3);
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(79, 124, 255, 0.4);
+    }
+    
+    .btn-danger {
+        background: rgba(229, 62, 62, 0.08);
+        color: #e53e3e;
+    }
+    
+    .btn-danger:hover {
+        background: rgba(229, 62, 62, 0.15);
+        transform: translateY(-2px);
+    }
+    
+    .media-preview {
+        margin-top: 10px;
+        max-width: 100%;
+        border-radius: 12px;
+        display: none;
+    }
+
+    @media (max-width: 768px) {
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+        
+        .form-actions {
+            flex-direction: column;
+        }
+        
+        .btn {
+            width: 100%;
+            flex: none;
+        }
+    }
+</style>
+
+<div class="ask-container">
+    <h2 style="color: #2d3748; margin-bottom: 8px;">✏️ Ask a Question</h2>
+    <p style="color: #718096; margin-bottom: 20px;">Upload video directly from your phone/computer</p>
+
+    <!-- Storage Info Box -->
+    <div class="storage-info">
+        <div class="storage-info-icon">📱</div>
+        <div>
+            <h4>Direct Device Video Uploads Active</h4>
+            <p>Select any video file directly from your device gallery or file system. Your video will automatically upload and be stored dynamically in Firebase Storage for Render!</p>
+        </div>
+    </div>
+
+    <form method="post" action="{{ url_for('ask_question') }}" enctype="multipart/form-data">
+        <!-- Question Section -->
+        <div class="form-section">
+            <div class="form-section-title">
+                <h4>📝 Question</h4>
+                <span class="badge badge-required">Required</span>
+            </div>
+            
+            <div class="form-group">
+                <label for="text">Question Text</label>
+                <textarea id="text" name="text" rows="3" required placeholder="Type your question here..."></textarea>
+            </div>
+        </div>
+
+        <!-- Direct Media Upload Section -->
+        <div class="form-section" style="border-left: 4px solid #4f7cff;">
+            <div class="form-section-title">
+                <h4>🎥 Question Media (Direct Device Upload)</h4>
+                <span class="badge badge-optional">Optional</span>
+            </div>
+            
+            <!-- Video File Input -->
+            <div class="form-group">
+                <label for="video">📹 Select Video File from Device</label>
+                <div class="file-input-wrapper">
+                    <input type="file" id="video" name="video" accept="video/*" onchange="previewMedia(this, 'video_preview')">
+                </div>
+                <div class="helper-text">Supports .mp4, .mov, .avi, .webm videos directly from your device</div>
+                <video id="video_preview" class="media-preview" controls style="max-height: 250px; width: 100%; margin-top: 12px; border-radius: 12px;"></video>
+            </div>
+            
+            <div class="form-row" style="margin-top: 16px;">
+                <div class="form-group">
+                    <label for="image">🖼️ Select Image File</label>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="image" name="image" accept="image/*" onchange="previewMedia(this, 'image_preview')">
+                    </div>
+                    <img id="image_preview" class="media-preview" style="max-height: 150px; margin-top: 10px; border-radius: 10px;" />
+                </div>
+                
+                <div class="form-group">
+                    <label for="audio">🎵 Select Audio File</label>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="audio" name="audio" accept="audio/*">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Optional Answer Section -->
+        <div class="form-section" style="border-left: 4px solid #2ecc71;">
+            <div class="form-section-title">
+                <h4>📌 Optional Answer</h4>
+                <span class="badge badge-optional">Optional</span>
+            </div>
+            
+            <div class="form-group">
+                <label for="answer_text">Answer Text</label>
+                <textarea id="answer_text" name="answer_text" rows="2" 
+                          placeholder="Type the answer here... (Optional)"></textarea>
+            </div>
+            
+            <div style="border-top: 1px solid rgba(0,0,0,0.06); padding-top: 16px; margin-top: 16px;">
+                <p style="color: #718096; font-size: 13px; margin-bottom: 12px; font-weight: 600;">
+                    Answer Media Files (Direct Upload):
+                </p>
+                
+                <div class="form-group">
+                    <label for="answer_video">📹 Answer Video File from Device</label>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="answer_video" name="answer_video" accept="video/*" onchange="previewMedia(this, 'answer_video_preview')">
+                    </div>
+                    <video id="answer_video_preview" class="media-preview" controls style="max-height: 200px; width: 100%; margin-top: 10px; border-radius: 10px;"></video>
+                </div>
+                
+                <div class="form-row" style="margin-top: 14px;">
+                    <div class="form-group">
+                        <label for="answer_image">🖼️ Answer Image File</label>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="answer_image" name="answer_image" accept="image/*">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="answer_audio">🎵 Answer Audio File</label>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="answer_audio" name="answer_audio" accept="audio/*">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="submit_btn">📤 Submit & Upload</button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-danger">← Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+function previewMedia(input, previewId) {
+    const preview = document.getElementById(previewId);
+    if (!preview) return;
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+        }
+        reader.readAsDataURL(input.files[0]);
+    } else {
+        preview.src = '';
+        preview.style.display = 'none';
+    }
+}
+
+document.querySelector('form').addEventListener('submit', function() {
+    const btn = document.getElementById('submit_btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Uploading to Firebase...';
+    }
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2 style="color: var(--text-secondary); margin-bottom: 20px;">⭐ Rate Your Friend</h2>
+<p style="color: var(--text-muted); margin-bottom: 20px;">Please rate your friend on these qualities. 1 star = Poor, 5 stars = Excellent!</p>
+
+{% if has_feedback %}
+<div style="padding: 30px; border-radius: 20px; background: var(--bg-primary); box-shadow: var(--inset-shadow); text-align: center;">
+    <div style="font-size: 48px;">🌟</div>
+    <h3 style="color: var(--text-secondary); margin: 15px 0 10px 0;">Thank You!</h3>
+    <p style="color: var(--text-muted);">You have already submitted your feedback.</p>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary" style="margin-top: 15px;">← Back to Dashboard</a>
+</div>
+{% else %}
+
+<form method="post" style="display: flex; flex-direction: column; gap: 20px;">
+
+    <!-- Good Friend Rating -->
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 10px;">🤝 Good Friend</label>
+        <div class="star-rating">
+            <input type="radio" name="good_friend" id="good_friend_5" value="5" required>
+            <label for="good_friend_5">⭐</label>
+            <input type="radio" name="good_friend" id="good_friend_4" value="4">
+            <label for="good_friend_4">⭐</label>
+            <input type="radio" name="good_friend" id="good_friend_3" value="3">
+            <label for="good_friend_3">⭐</label>
+            <input type="radio" name="good_friend" id="good_friend_2" value="2">
+            <label for="good_friend_2">⭐</label>
+            <input type="radio" name="good_friend" id="good_friend_1" value="1">
+            <label for="good_friend_1">⭐</label>
+        </div>
+    </div>
+
+    <!-- Caring Rating -->
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 10px;">❤️ Caring</label>
+        <div class="star-rating">
+            <input type="radio" name="caring" id="caring_5" value="5" required>
+            <label for="caring_5">⭐</label>
+            <input type="radio" name="caring" id="caring_4" value="4">
+            <label for="caring_4">⭐</label>
+            <input type="radio" name="caring" id="caring_3" value="3">
+            <label for="caring_3">⭐</label>
+            <input type="radio" name="caring" id="caring_2" value="2">
+            <label for="caring_2">⭐</label>
+            <input type="radio" name="caring" id="caring_1" value="1">
+            <label for="caring_1">⭐</label>
+        </div>
+    </div>
+
+    <!-- Supportive Rating -->
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 10px;">💪 Supportive</label>
+        <div class="star-rating">
+            <input type="radio" name="supportive" id="supportive_5" value="5" required>
+            <label for="supportive_5">⭐</label>
+            <input type="radio" name="supportive" id="supportive_4" value="4">
+            <label for="supportive_4">⭐</label>
+            <input type="radio" name="supportive" id="supportive_3" value="3">
+            <label for="supportive_3">⭐</label>
+            <input type="radio" name="supportive" id="supportive_2" value="2">
+            <label for="supportive_2">⭐</label>
+            <input type="radio" name="supportive" id="supportive_1" value="1">
+            <label for="supportive_1">⭐</label>
+        </div>
+    </div>
+
+    <!-- Trustworthy Rating -->
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 10px;">🔒 Trustworthy</label>
+        <div class="star-rating">
+            <input type="radio" name="trustworthy" id="trustworthy_5" value="5" required>
+            <label for="trustworthy_5">⭐</label>
+            <input type="radio" name="trustworthy" id="trustworthy_4" value="4">
+            <label for="trustworthy_4">⭐</label>
+            <input type="radio" name="trustworthy" id="trustworthy_3" value="3">
+            <label for="trustworthy_3">⭐</label>
+            <input type="radio" name="trustworthy" id="trustworthy_2" value="2">
+            <label for="trustworthy_2">⭐</label>
+            <input type="radio" name="trustworthy" id="trustworthy_1" value="1">
+            <label for="trustworthy_1">⭐</label>
+        </div>
+    </div>
+
+    <!-- NEW: Loyalty Rating -->
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 10px;">💎 Loyalty</label>
+        <div class="star-rating">
+            <input type="radio" name="loyalty" id="loyalty_5" value="5" required>
+            <label for="loyalty_5">⭐</label>
+            <input type="radio" name="loyalty" id="loyalty_4" value="4">
+            <label for="loyalty_4">⭐</label>
+            <input type="radio" name="loyalty" id="loyalty_3" value="3">
+            <label for="loyalty_3">⭐</label>
+            <input type="radio" name="loyalty" id="loyalty_2" value="2">
+            <label for="loyalty_2">⭐</label>
+            <input type="radio" name="loyalty" id="loyalty_1" value="1">
+            <label for="loyalty_1">⭐</label>
+        </div>
+    </div>
+
+    <!-- NEW: Recommend Rating -->
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 10px;">🌟 Would you recommend me as a friend?</label>
+        <div class="star-rating">
+            <input type="radio" name="recommend" id="recommend_5" value="5" required>
+            <label for="recommend_5">⭐</label>
+            <input type="radio" name="recommend" id="recommend_4" value="4">
+            <label for="recommend_4">⭐</label>
+            <input type="radio" name="recommend" id="recommend_3" value="3">
+            <label for="recommend_3">⭐</label>
+            <input type="radio" name="recommend" id="recommend_2" value="2">
+            <label for="recommend_2">⭐</label>
+            <input type="radio" name="recommend" id="recommend_1" value="1">
+            <label for="recommend_1">⭐</label>
+        </div>
+    </div>
+
+    <!-- Comment -->
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 10px;">💬 Additional Comments (Optional)</label>
+        <textarea name="comment" style="width: 100%; padding: 14px 18px; border: none; border-radius: 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 15px; color: var(--text-primary); outline: none; resize: vertical; min-height: 80px; font-family: inherit;" placeholder="Share your thoughts..."></textarea>
+    </div>
+
+    <button type="submit" class="btn btn-gold btn-lg" style="width: 100%; justify-content: center;">⭐ Submit Feedback</button>
+</form>
+
+{% endif %}
+
+<style>
+.star-rating {
+    display: flex;
+    flex-direction: row-reverse;
+    gap: 8px;
+    justify-content: center;
+}
+.star-rating input { display: none; }
+.star-rating label {
+    font-size: 35px;
+    color: #ddd;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.star-rating label:hover,
+.star-rating label:hover ~ label,
+.star-rating input:checked ~ label {
+    color: #f5a623;
+    transform: scale(1.15);
+}
+@media (max-width: 600px) {
+    .star-rating label { font-size: 28px; }
+}
+</style>
+
+{% endblock %}

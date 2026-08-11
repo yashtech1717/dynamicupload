@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2 style="color: var(--text-secondary); margin-bottom: 20px;">📝 Answer Question</h2>
+
+<div style="padding: 16px 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); margin-bottom: 20px;">
+    <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 5px;">Question from <strong style="color: var(--accent-blue);">{{ question.asker.username }}</strong></p>
+    <p style="font-size: 17px; color: var(--text-secondary);">{{ question.text }}</p>
+</div>
+
+<form method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 18px;">
+    <div>
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Your Answer</label>
+        <textarea name="text" required style="width: 100%; padding: 16px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 120px; font-family: inherit;" placeholder="Type your answer here..."></textarea>
+    </div>
+    
+    <div>
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">
+            <input type="checkbox" name="is_correct" style="transform: scale(1.3); accent-color: var(--accent-green); margin-right: 8px;">
+            Mark as Correct Answer
+        </label>
+    </div>
+    
+    <div>
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">📷 Add Image (Optional)</label>
+        <input type="file" name="image" accept="image/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+    </div>
+    
+    <div>
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎥 Add Video (Optional)</label>
+        <input type="file" name="video" accept="video/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+    </div>
+    
+    <div>
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎵 Add Audio (Optional)</label>
+        <input type="file" name="audio" accept="audio/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+    </div>
+    
+    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+        <button type="submit" class="btn btn-success btn-lg">📤 Submit Answer</button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-danger btn-lg">← Cancel</a>
+    </div>
+</form>
+
+<script>
+document.querySelectorAll('input[type="file"]').forEach(input => {
+    input.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            const size = (this.files[0].size / 1024 / 1024).toFixed(2);
+            const label = this.parentElement.querySelector('label');
+            if (label && !label.textContent.includes('(')) {
+                label.textContent = label.textContent + ` (${size} MB)`;
+            }
+        }
+    });
+});
+</script>
+
+{% endblock %}

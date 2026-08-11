@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2 style="color: var(--text-secondary); margin-bottom: 20px;">📊 Feedback Responses</h2>
+
+<!-- Average Ratings -->
+<div style="padding: 20px; border-radius: 18px; background: var(--bg-primary); box-shadow: var(--card-shadow); margin-bottom: 25px;">
+    <h4 style="color: var(--text-secondary); margin-bottom: 15px;">📈 Average Ratings</h4>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+        {% for q in questions %}
+        <div style="padding: 15px; border-radius: 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); text-align: center;">
+            <div style="font-size: 13px; color: var(--text-muted);">{{ q.question|truncate(30) }}</div>
+            <div style="font-size: 32px; font-weight: 800; color: var(--accent-yellow);">
+                {% if averages[q.id] > 0 %}{{ "%.1f"|format(averages[q.id]) }}{% else %}—{% endif %}
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted);">{{ q.responses|length }} responses</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Individual Responses -->
+<h4 style="color: var(--text-secondary); margin-bottom: 15px;">📋 Individual Responses</h4>
+
+<div style="padding: 20px; border-radius: 18px; background: var(--bg-primary); box-shadow: var(--card-shadow);">
+    {% if responses %}
+        {% for response in responses %}
+        <div style="padding: 14px 18px; border-radius: 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <strong style="color: var(--accent-blue);">{{ response.user.username }}</strong>
+                    <span style="color: var(--text-muted); font-size: 12px; margin-left: 10px;">{{ response.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+                </div>
+                <div style="font-size: 20px; color: var(--accent-yellow);">
+                    {% for i in range(response.rating) %}⭐{% endfor %}
+                </div>
+            </div>
+            <div style="color: var(--text-secondary); margin-top: 5px; font-size: 14px;">
+                <strong>Q:</strong> {{ response.question.question }}
+            </div>
+            {% if response.comment %}
+            <div style="margin-top: 8px; padding: 10px 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-radius: 10px; color: var(--text-secondary); font-style: italic;">
+                💬 "{{ response.comment }}"
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="color: var(--text-muted); text-align: center; padding: 20px;">No feedback responses yet.</p>
+    {% endif %}
+</div>
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('admin_feedback_questions') }}" class="btn btn-secondary">← Back to Questions</a>
+</div>
+
+<style>
+@media (max-width: 600px) {
+    .grid-cards { grid-template-columns: 1fr !important; }
+}
+</style>
+
+{% endblock %}

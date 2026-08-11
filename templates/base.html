@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+    <title>{% block title %}{{ get_site_settings().site_title if get_site_settings() else 'YASH WORLD' }}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Manrope:wght@300;400;500;600;700;800&family=Outfit:wght@600;700;800&family=Playfair+Display:ital,wght@0,600;0,800;1,600&display=swap" rel="stylesheet" />
+    <style>
+        /* ============================================
+           NEUMORPHISM DESIGN SYSTEM
+           ============================================ */
+        :root {
+            --bg-primary: #eef2f7;
+            --bg-secondary: #ffffff;
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --text-muted: #718096;
+            --neu-shadow-light: #ffffff;
+            --neu-shadow-dark: #c2c9d6;
+            --card-bg: #eef2f7;
+            --accent-blue: #4f7cff;
+            --accent-green: #2ecc71;
+            --accent-red: #e74c3c;
+            --accent-yellow: #f39c12;
+            --accent-purple: #9b59b6;
+            --accent-orange: #e67e22;
+            --accent-teal: #1abc9c;
+            --font-family: 'Manrope', sans-serif;
+            --neu-flat: 12px 12px 24px #c2c9d6, -12px -12px 24px #ffffff;
+            --neu-pressed: inset 5px 5px 10px #c2c9d6, inset -5px -5px 10px #ffffff;
+            --neu-btn: 6px 6px 14px #c2c9d6, -6px -6px 14px #ffffff;
+            --gradient-primary: linear-gradient(135deg, #4f7cff, #6c5ce7);
+            --gradient-gold: linear-gradient(135deg, #f7971e, #ffd200);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-family);
+            background: var(--bg-primary);
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--text-primary);
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        .card {
+            padding: 35px 30px;
+            border-radius: 30px;
+            background: var(--card-bg);
+            box-shadow: var(--neu-flat);
+            margin-bottom: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.7);
+        }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { font-size: 38px; font-weight: 800; color: #1e293b; letter-spacing: -0.5px; }
+        .header p { color: var(--text-muted); font-size: 15px; margin-top: 4px; }
+        .btn {
+            padding: 12px 26px;
+            font-size: 15px;
+            font-weight: 700;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            font-family: var(--font-family);
+            box-shadow: var(--neu-btn);
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 8px 8px 18px #c2c9d6, -8px -8px 18px #ffffff; }
+        .btn:active { transform: translateY(1px); box-shadow: inset 3px 3px 6px #c2c9d6, inset -3px -3px 6px #ffffff; }
+        .btn-primary { background: var(--gradient-primary); color: white; box-shadow: 6px 6px 14px #c2c9d6, -6px -6px 14px #ffffff, 0 6px 20px rgba(79, 124, 255, 0.3); }
+        .btn-success { background: var(--accent-green); color: white; }
+        .btn-danger { background: var(--accent-red); color: white; }
+        .btn-warning { background: var(--accent-yellow); color: white; }
+        .btn-gold { background: var(--gradient-gold); color: #333; }
+        .btn-sm { padding: 8px 18px; font-size: 13px; border-radius: 16px; }
+        .btn-lg { padding: 16px 35px; font-size: 17px; border-radius: 22px; }
+        
+        #toastContainer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            padding: 14px 22px;
+            border-radius: 18px;
+            background: var(--card-bg);
+            box-shadow: var(--neu-flat);
+            animation: toastSlide 0.3s ease;
+            border-left: 4px solid var(--accent-blue);
+            max-width: 350px;
+            font-weight: 600;
+        }
+        @keyframes toastSlide {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .flash-messages { margin-bottom: 20px; }
+        .flash-message {
+            padding: 14px 20px;
+            border-radius: 18px;
+            margin-bottom: 12px;
+            border: none;
+            box-shadow: var(--neu-flat);
+            font-weight: 600;
+            font-size: 14px;
+            animation: slideDown 0.3s ease-out;
+        }
+        .flash-message.success { background: #e8f8f0; color: #155724; border-left: 4px solid var(--accent-green); }
+        .flash-message.danger { background: #fdeaea; color: #721c24; border-left: 4px solid var(--accent-red); }
+        .flash-message.info { background: #eef4ff; color: #1c3d7a; border-left: 4px solid var(--accent-blue); }
+        .flash-message.warning { background: #fff8e6; color: #856404; border-left: 4px solid var(--accent-yellow); }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .user-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 16px 20px;
+            background: var(--bg-primary);
+            box-shadow: var(--neu-pressed);
+            border-radius: 24px;
+            margin-bottom: 24px;
+        }
+        .user-nav .user-info { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .user-nav .user-info .badge {
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            color: white;
+            box-shadow: 3px 3px 6px #c2c9d6, -3px -3px 6px #ffffff;
+        }
+        .badge-admin { background: var(--accent-blue); }
+        .badge-friend { background: var(--accent-green); }
+        .badge-gold { background: var(--gradient-gold); color: #333; }
+        .media-container { margin: 15px 0; }
+        .media-container img, .media-container video {
+            max-width: 100%;
+            border-radius: 18px;
+            box-shadow: var(--neu-flat);
+        }
+        .media-container audio { width: 100%; border-radius: 18px; }
+        .empty-state { text-align: center; padding: 40px 20px; }
+        .empty-state .icon { font-size: 64px; display: block; margin-bottom: 15px; }
+        .empty-state h3 { color: var(--text-secondary); margin-bottom: 10px; }
+        .empty-state p { color: var(--text-muted); }
+        @media (max-width: 600px) {
+            body { padding: 12px; }
+            .card { padding: 22px 18px; border-radius: 24px; }
+            .header h1 { font-size: 28px; }
+            .user-nav { flex-direction: column; align-items: stretch; text-align: center; }
+            .user-nav .user-info { justify-content: center; }
+            .btn { width: 100%; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="toastContainer"></div>
+
+<div class="container">
+    <div class="card">
+        <div class="header">
+            <h1>{% block header_title %}{{ get_site_settings().site_title if get_site_settings() else 'YASH WORLD' }}{% endblock %}</h1>
+            <p>{% block header_tagline %}{{ get_site_settings().site_tagline if get_site_settings() else 'Private Messaging Platform' }}{% endblock %}</p>
+        </div>
+
+        {% if current_user.is_authenticated %}
+        <div class="user-nav">
+            <div class="user-info">
+                <span>👋 <strong>{{ current_user.username }}</strong></span>
+                {% if current_user.is_admin %}<span class="badge badge-admin">Admin</span>{% endif %}
+                {% if current_user.is_friend %}<span class="badge badge-friend">Friend</span>{% endif %}
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-sm">💬 Dashboard</a>
+                {% if current_user.is_admin %}
+                <a href="{{ url_for('ask_question') }}" class="btn btn-success btn-sm">✏️ Ask</a>
+                <a href="{{ url_for('admin_users') }}" class="btn btn-warning btn-sm">👥 Users</a>
+                <a href="{{ url_for('admin_feedback') }}" class="btn btn-gold btn-sm">⭐ Feedback</a>
+                <a href="{{ url_for('admin_responses') }}" class="btn btn-primary btn-sm">📊 Responses</a>
+                <a href="{{ url_for('admin_typing_text') }}" class="btn btn-sm" style="background: var(--accent-teal); color: white;">✏️ Typing</a>
+                <a href="{{ url_for('admin_settings') }}" class="btn btn-sm" style="background: var(--accent-purple); color: white;">⚙️</a>
+                {% else %}
+                <button onclick="toggleFeedback()" class="btn btn-gold btn-sm">⭐ Rate Me</button>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="btn btn-danger btn-sm">🚪 Logout</a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+</div>
+
+<script>
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.style.borderLeftColor = type === 'success' ? '#2ecc71' : type === 'error' ? '#e74c3c' : '#4f7cff';
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+console.log('🌟 YASH WORLD - Private Messaging Platform (Neumorphic)');
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

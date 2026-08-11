@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 25px;">
+    <h2 style="color: var(--text-secondary);">⭐ Manage Feedback Questions</h2>
+    <a href="{{ url_for('admin_feedback_responses') }}" class="btn btn-primary btn-sm">📊 View Responses</a>
+</div>
+
+<!-- Add New Feedback Question -->
+<div style="padding: 20px; border-radius: 18px; background: var(--bg-primary); box-shadow: var(--inset-shadow); margin-bottom: 25px;">
+    <h4 style="color: var(--text-secondary); margin-bottom: 15px;">➕ Add New Feedback Question</h4>
+    <form method="post" style="display: flex; gap: 15px; flex-wrap: wrap;">
+        <input type="text" name="question" required placeholder="Enter feedback question..." 
+               style="flex: 1; min-width: 250px; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; font-family: var(--font-family);">
+        <button type="submit" class="btn btn-success" style="padding: 14px 30px;">➕ Add</button>
+    </form>
+</div>
+
+<!-- Existing Feedback Questions -->
+<div style="padding: 20px; border-radius: 18px; background: var(--bg-primary); box-shadow: var(--card-shadow);">
+    <h4 style="color: var(--text-secondary); margin-bottom: 15px;">📋 Existing Questions</h4>
+    
+    {% if questions %}
+        {% for q in questions %}
+        <div style="padding: 14px 18px; border-radius: 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <span style="font-weight: 500; color: var(--text-secondary);">{{ q.question }}</span>
+                <span style="font-size: 11px; padding: 2px 10px; border-radius: 12px; {% if q.is_active %}background: var(--accent-green); color: white;{% else %}background: var(--accent-red); color: white;{% endif %}">
+                    {{ 'Active' if q.is_active else 'Inactive' }}
+                </span>
+                <span style="color: var(--text-muted); font-size: 11px;">{{ q.responses|length }} responses</span>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <form method="post" action="{{ url_for('toggle_feedback_question', q_id=q.id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-sm {% if q.is_active %}btn-warning{% else %}btn-success{% endif %}" style="padding: 4px 12px; font-size: 11px;">
+                        {% if q.is_active %}⏸️ Deactivate{% else %}▶️ Activate{% endif %}
+                    </button>
+                </form>
+                <form method="post" action="{{ url_for('delete_feedback_question', q_id=q.id) }}" style="display: inline;" onsubmit="return confirm('Delete this feedback question?');">
+                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 11px;">🗑️</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="color: var(--text-muted); text-align: center; padding: 20px;">No feedback questions added yet.</p>
+    {% endif %}
+</div>
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+</div>
+
+<style>
+@media (max-width: 600px) {
+    .btn-sm { width: 100%; justify-content: center; }
+    form { width: 100%; }
+}
+</style>
+
+{% endblock %}

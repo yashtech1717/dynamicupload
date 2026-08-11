@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2 style="color: var(--text-secondary); margin-bottom: 20px;">⚙️ Site Settings</h2>
+
+<div style="padding: 20px; border-radius: 20px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+    <form method="post" style="display: flex; flex-direction: column; gap: 20px;">
+        <div>
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Site Title</label>
+            <input type="text" name="site_title" value="{{ settings.site_title }}" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+        </div>
+        
+        <div>
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Site Tagline</label>
+            <input type="text" name="site_tagline" value="{{ settings.site_tagline }}" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+        </div>
+        
+        <div>
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Welcome Message</label>
+            <textarea name="welcome_message" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 100px; font-family: inherit;">{{ settings.welcome_message or '' }}</textarea>
+        </div>
+        
+        <button type="submit" class="btn btn-success">💾 Save Settings</button>
+    </form>
+</div>
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+</div>
+
+{% endblock %}

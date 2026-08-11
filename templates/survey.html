@@ -1,0 +1,725 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- ============================================ -->
+<!-- TYPING PAGE -->
+<!-- ============================================ -->
+{% if show_typing_page and has_typing_text %}
+<div class="page active" id="typingPage">
+    <div class="typingBox" style="margin-bottom: 30px; padding: 35px; border-radius: 20px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+        <p id="typingMessage" style="font-size: 22px; line-height: 1.8; color: var(--text-secondary); white-space: pre-wrap;"></p>
+    </div>
+    <div class="buttons" style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+        <button class="btn btn-primary btn-lg" onclick="goToSurvey()" style="flex: 1; min-width: 140px;">
+            <span class="icon">📖</span> Start Survey →
+        </button>
+        <button class="btn btn-danger btn-lg" onclick="exitSurvey()" style="flex: 1; min-width: 140px;">
+            <span class="icon">🚪</span> Logout
+        </button>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const text = `{{ typing_text|safe }}`;
+    const element = document.getElementById('typingMessage');
+    let i = 0;
+    let fullText = '';
+    
+    function typing() {
+        if (i < text.length) {
+            fullText += text.charAt(i);
+            element.textContent = fullText;
+            i++;
+            let delay = 30;
+            if (text.charAt(i-1) === '.' || text.charAt(i-1) === '!' || text.charAt(i-1) === '?') delay = 350;
+            else if (text.charAt(i-1) === ',') delay = 120;
+            setTimeout(typing, delay);
+        }
+    }
+    setTimeout(typing, 500);
+});
+
+function goToSurvey() {
+    const btn = document.querySelector('.btn-primary');
+    btn.classList.add('loading');
+    btn.innerHTML = '<span class="spinner"></span> Loading...';
+    btn.disabled = true;
+    
+    fetch('{{ url_for("seen_typing") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    })
+    .then(response => response.json())
+    .then(data => {
+        window.location.href = '{{ url_for("survey") }}?index=0';
+    })
+    .catch(() => {
+        window.location.href = '{{ url_for("survey") }}?index=0';
+    });
+}
+
+function exitSurvey() {
+    if (confirm('Are you sure you want to logout?')) {
+        window.location.href = '{{ url_for("logout") }}';
+    }
+}
+</script>
+
+<!-- ============================================ -->
+<!-- EMPTY PAGE -->
+<!-- ============================================ -->
+{% elif is_completely_empty %}
+<div class="page active">
+    <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <h2>No Content Available</h2>
+        <p>The admin hasn't added any content yet.<br>Please check back later.</p>
+        <div class="user-info-card">
+            <p>🔑 Logged in as: <strong>{{ current_user.username }}</strong></p>
+        </div>
+        <button class="btn btn-danger" onclick="window.location.href='{{ url_for('logout') }}'" style="margin-top: 20px;">
+            🚪 Logout
+        </button>
+    </div>
+</div>
+
+<!-- ============================================ -->
+<!-- HAS QUESTIONS - SURVEY -->
+<!-- ============================================ -->
+{% elif has_questions and not show_final_feedback and not show_summary %}
+
+{% if question %}
+<div class="page active fade-in">
+    <!-- Question Header -->
+    <div class="question-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 15px;">
+        <div>
+            <span class="question-type-badge" style="display: inline-block; padding: 6px 16px; border-radius: 30px; color: white; font-size: 13px; font-weight: 600; background: {% if question.type == 'survey' %}#4f7cff{% elif question.type == 'two_marks' %}#f39c12{% else %}#2ecc71{% endif %};">
+                {% if question.type == 'survey' %}📝 Survey
+                {% elif question.type == 'two_marks' %}📝 2 Marks
+                {% elif question.type == 'quiz' %}🧠 Quiz
+                {% endif %}
+            </span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+            <span style="color: var(--text-muted); font-size: 14px; font-weight: 500;">
+                Question {{ current_index + 1 }} of {{ total }}
+            </span>
+            <span class="marks-badge" style="display: inline-block; padding: 4px 14px; border-radius: 30px; font-size: 14px; font-weight: 700; color: white; background: {% if question.type == 'survey' or question.type == 'quiz' %}#4f7cff{% else %}#f39c12{% endif %};">
+                {{ question.marks }} Mark{% if question.marks > 1 %}s{% endif %}
+            </span>
+        </div>
+    </div>
+    
+    <!-- Progress Bar -->
+    <div class="progress-container" style="margin-bottom: 20px;">
+        <div class="progress-enhanced">
+            <div class="progress-fill" style="width: {{ progress }}%;"></div>
+        </div>
+        <span class="progress-label">{{ (progress)|round|int }}%</span>
+    </div>
+    
+    <!-- Question Card -->
+    <div class="question-card" style="padding: 25px; border-radius: 24px; background: var(--card-bg); box-shadow: var(--card-shadow); margin-bottom: 20px; position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--gradient-primary);"></div>
+        
+        <!-- Question Text -->
+        <div class="question-text-content" style="margin-bottom: 15px;">
+            <p style="font-size: 20px; font-weight: 600; color: var(--text-secondary); line-height: 1.7;">
+                {{ question.text }}
+            </p>
+        </div>
+        
+        <!-- ============================================ -->
+        <!-- MEDIA - ONLY SHOW ONE TYPE -->
+        <!-- ============================================ -->
+        
+        {% if question.image %}
+        <!-- IMAGE QUESTION -->
+        <div class="media-container" style="margin-bottom: 15px;">
+            <div class="media-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 6px 12px; border-radius: 10px; background: var(--bg-primary); box-shadow: var(--inset-shadow); width: fit-content; color: var(--text-muted); font-size: 13px; font-weight: 600;">
+                <span>📷</span> Image Question
+            </div>
+            <button class="btn btn-reveal-media" onclick="toggleMedia('questionMedia_{{ question.id }}', this)" style="width: 100%; padding: 16px; font-size: 15px; gap: 10px; background: var(--gradient-primary); color: white; border: none; border-radius: 16px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(79,124,255,0.3); display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                <span class="icon">🖼️</span>
+                <span class="btn-text">Show Answer Image</span>
+                <span class="arrow" style="transition: transform 0.3s ease;">▼</span>
+            </button>
+            <div id="questionMedia_{{ question.id }}" class="media-content" style="display: none; margin-top: 15px; animation: mediaReveal 0.5s ease;">
+                <div class="image-container" style="border-radius: 16px; overflow: hidden; box-shadow: var(--card-shadow);">
+                    <img src="{{ url_for('serve_media', filename=question.image) }}" alt="Question image" loading="lazy" style="width: 100%; height: auto; display: block;">
+                </div>
+            </div>
+        </div>
+        
+        {% elif question.video %}
+        <!-- VIDEO QUESTION -->
+        <div class="media-container" style="margin-bottom: 15px;">
+            <div class="media-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 6px 12px; border-radius: 10px; background: var(--bg-primary); box-shadow: var(--inset-shadow); width: fit-content; color: var(--text-muted); font-size: 13px; font-weight: 600;">
+                <span>🎬</span> Video Question
+            </div>
+            <button class="btn btn-reveal-media" onclick="toggleMedia('questionMedia_{{ question.id }}', this)" style="width: 100%; padding: 16px; font-size: 15px; gap: 10px; background: var(--gradient-primary); color: white; border: none; border-radius: 16px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(79,124,255,0.3); display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                <span class="icon">🎬</span>
+                <span class="btn-text">Show Answer Video</span>
+                <span class="arrow" style="transition: transform 0.3s ease;">▼</span>
+            </button>
+            <div id="questionMedia_{{ question.id }}" class="media-content" style="display: none; margin-top: 15px; animation: mediaReveal 0.5s ease;">
+                <div class="video-wrapper" style="border-radius: 16px; overflow: hidden; box-shadow: var(--card-shadow);">
+                    <video controls style="width: 100%; max-height: 400px; display: block;">
+                        <source src="{{ url_for('serve_media', filename=question.video) }}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            </div>
+        </div>
+        
+        {% elif question.audio %}
+        <!-- AUDIO QUESTION -->
+        <div class="media-container" style="margin-bottom: 15px;">
+            <div class="media-label" style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 6px 12px; border-radius: 10px; background: var(--bg-primary); box-shadow: var(--inset-shadow); width: fit-content; color: var(--text-muted); font-size: 13px; font-weight: 600;">
+                <span>🎵</span> Audio Question
+            </div>
+            <button class="btn btn-reveal-media" onclick="toggleMedia('questionMedia_{{ question.id }}', this)" style="width: 100%; padding: 16px; font-size: 15px; gap: 10px; background: var(--gradient-primary); color: white; border: none; border-radius: 16px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(79,124,255,0.3); display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                <span class="icon">🎵</span>
+                <span class="btn-text">Play Answer Audio</span>
+                <span class="arrow" style="transition: transform 0.3s ease;">▼</span>
+            </button>
+            <div id="questionMedia_{{ question.id }}" class="media-content" style="display: none; margin-top: 15px; animation: mediaReveal 0.5s ease;">
+                <audio controls style="width: 100%; border-radius: 12px;">
+                    <source src="{{ url_for('serve_media', filename=question.audio) }}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- ============================================ -->
+        <!-- SURVEY FORM -->
+        <!-- ============================================ -->
+        <form id="surveyForm">
+            <input type="hidden" name="question_id" value="{{ question.id }}">
+            <input type="hidden" name="question_type" value="{{ question.type }}">
+            
+            <!-- Survey Options -->
+            {% if question.type == 'survey' %}
+                <div class="options-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+                    {% for option in question.options %}
+                    <label class="option-card {% if option.id in selected_options %}selected{% endif %}" data-option-id="{{ option.id }}" style="padding: 14px 18px; border-radius: 16px; background: var(--bg-primary); box-shadow: 6px 6px 12px var(--shadow-light), -6px -6px 12px var(--shadow-dark); transition: all 0.3s ease; cursor: pointer; display: flex; align-items: center; gap: 12px; position: relative; overflow: hidden;">
+                        <input type="checkbox" name="options" value="{{ option.id }}" {% if option.id in selected_options %}checked{% endif %} style="transform: scale(1.2); accent-color: var(--accent-blue);">
+                        <span class="option-text" style="font-weight: 500; color: var(--text-secondary); font-size: 15px;">{{ option.text }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                
+            <!-- Quiz Options -->
+            {% elif question.type == 'quiz' %}
+                <div class="options-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+                    {% for option in question.options %}
+                    <label class="option-card {% if option.id in selected_options %}selected{% endif %}" data-option-id="{{ option.id }}" style="padding: 14px 18px; border-radius: 16px; background: var(--bg-primary); box-shadow: 6px 6px 12px var(--shadow-light), -6px -6px 12px var(--shadow-dark); transition: all 0.3s ease; cursor: pointer; display: flex; align-items: center; gap: 12px; position: relative; overflow: hidden;">
+                        <input type="radio" name="options" value="{{ option.id }}" {% if option.id in selected_options %}checked{% endif %} style="transform: scale(1.2); accent-color: var(--accent-blue);">
+                        <span class="option-text" style="font-weight: 500; color: var(--text-secondary); font-size: 15px;">{{ option.text }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                
+            <!-- 2 Marks Question -->
+            {% elif question.type == 'two_marks' %}
+                <div class="two-marks-section" style="margin-top: 10px;">
+                    <div class="two-marks-question" onclick="toggleTwoMarks()" style="background: var(--bg-primary); padding: 25px; border-radius: 20px; cursor: pointer; box-shadow: 12px 12px 24px var(--shadow-light), -12px -12px 24px var(--shadow-dark); transition: all 0.3s ease; position: relative;">
+                        <div class="question-text" style="font-size: 18px; font-weight: 600; color: var(--accent-blue); display: flex; justify-content: space-between; align-items: center;">
+                            <span>🔍 Click to reveal the answer</span>
+                            <span class="click-icon" id="clickIcon" style="font-size: 24px; color: var(--accent-blue); animation: pulse 2s ease-in-out infinite;">👆</span>
+                        </div>
+                        <div class="click-hint" style="font-size: 13px; color: var(--text-muted); font-weight: 400; margin-top: 5px;">
+                            💡 Click to reveal the answer and earn marks!
+                        </div>
+                    </div>
+                    
+                    <div id="twoMarksAnswer" class="two-marks-answer" style="margin-top: 15px; padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); display: {% if user_response and user_response.is_revealed %}block{% else %}none{% endif %}; animation: slideIn 0.5s ease;">
+                        {% if two_marks_answer %}
+                            <div class="answer-content">
+                                <p style="color: var(--accent-green); font-weight: 700; font-size: 17px;">✅ Correct Answer: {{ two_marks_answer.answer_text }}</p>
+                                
+                                {% if two_marks_answer.image %}
+                                <div class="media-container" style="margin: 10px 0;">
+                                    <button class="btn btn-sm btn-reveal-media" onclick="toggleMedia('answerMedia', this)" style="padding: 8px 16px; font-size: 13px; background: var(--gradient-primary); color: white; border: none; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px;">
+                                        🖼️ <span>Show Image</span> <span class="arrow">▼</span>
+                                    </button>
+                                    <div id="answerMedia" class="media-content" style="display: none; margin-top: 10px; animation: mediaReveal 0.4s ease;">
+                                        <div class="image-container" style="border-radius: 12px; overflow: hidden; box-shadow: var(--card-shadow);">
+                                            <img src="{{ url_for('serve_media', filename=two_marks_answer.image) }}" alt="Answer image" style="max-width: 100%; max-height: 200px; display: block;">
+                                        </div>
+                                    </div>
+                                </div>
+                                {% elif two_marks_answer.video %}
+                                <div class="media-container" style="margin: 10px 0;">
+                                    <button class="btn btn-sm btn-reveal-media" onclick="toggleMedia('answerMedia', this)" style="padding: 8px 16px; font-size: 13px; background: var(--gradient-primary); color: white; border: none; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px;">
+                                        🎬 <span>Show Video</span> <span class="arrow">▼</span>
+                                    </button>
+                                    <div id="answerMedia" class="media-content" style="display: none; margin-top: 10px; animation: mediaReveal 0.4s ease;">
+                                        <div class="video-wrapper" style="border-radius: 12px; overflow: hidden; box-shadow: var(--card-shadow);">
+                                            <video id="answerVideoPlayer" controls style="max-width: 100%; max-height: 200px; width: 100%; display: block;">
+                                                <source src="{{ url_for('serve_media', filename=two_marks_answer.video) }}" type="video/mp4">
+                                            </video>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% elif two_marks_answer.audio %}
+                                <div class="media-container" style="margin: 10px 0;">
+                                    <button class="btn btn-sm btn-reveal-media" onclick="toggleMedia('answerMedia', this)" style="padding: 8px 16px; font-size: 13px; background: var(--gradient-primary); color: white; border: none; border-radius: 12px; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px;">
+                                        🎵 <span>Play Audio</span> <span class="arrow">▼</span>
+                                    </button>
+                                    <div id="answerMedia" class="media-content" style="display: none; margin-top: 10px; animation: mediaReveal 0.4s ease;">
+                                        <audio controls style="width: 100%; border-radius: 12px;">
+                                            <source src="{{ url_for('serve_media', filename=two_marks_answer.audio) }}" type="audio/mpeg">
+                                        </audio>
+                                    </div>
+                                </div>
+                                {% endif %}
+                                
+                                <div class="explanation" style="color: var(--text-secondary); margin-top: 8px; font-size: 14px; line-height: 1.6;">
+                                    <strong>Explanation:</strong> {{ two_marks_answer.explanation }}
+                                </div>
+                                <div class="marks-earned" style="margin-top: 10px; padding: 10px 14px; border-radius: 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-weight: 700; font-size: 16px; color: var(--accent-blue);">
+                                    📊 <span class="full-marks" style="color: var(--accent-green);">+2 Marks Earned!</span>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <input type="hidden" name="is_revealed" id="isRevealed" value="{% if user_response and user_response.is_revealed %}true{% else %}false{% endif %}">
+                </div>
+            {% endif %}
+            
+            <!-- Feedback Textarea -->
+            <textarea name="text_response" placeholder="💬 Share your thoughts on this question..." class="response-textarea" style="width: 100%; margin-top: 15px; padding: 14px 18px; font-size: 15px; font-family: inherit; resize: vertical; height: 80px; border: none; outline: none; border-radius: 16px; background: var(--bg-primary); color: var(--text-primary); transition: all 0.3s ease; box-shadow: var(--inset-shadow);">{{ user_response.text_response if user_response else '' }}</textarea>
+        </form>
+    </div>
+    
+    <!-- Navigation -->
+    <div class="survey-navigation">
+        <div class="buttons" style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 20px; flex-wrap: wrap;">
+            {% if current_index > 0 %}
+            <button class="btn btn-secondary" onclick="window.location.href='{{ url_for('survey') }}?index={{ current_index - 1 }}'" style="padding: 12px 25px; font-size: 15px;">
+                <span class="icon-left">←</span> Previous
+            </button>
+            {% endif %}
+            
+            <button class="btn btn-primary btn-lg" onclick="saveAndContinue()" id="nextBtn" style="padding: 12px 30px; font-size: 16px;">
+                {% if current_index < total - 1 %}Next <span class="icon">→</span>{% else %}Submit <span class="icon">→</span>{% endif %}
+            </button>
+            
+            <button class="btn btn-danger" onclick="exitSurvey()" style="padding: 12px 25px; font-size: 15px;">🚪 Logout</button>
+        </div>
+    </div>
+</div>
+
+<style>
+@keyframes mediaReveal {
+    from { opacity: 0; transform: translateY(-10px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1); opacity: 0.6; }
+}
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.btn-reveal-media { position: relative; transition: all 0.3s ease; }
+.btn-reveal-media:hover { transform: translateY(-2px); }
+.btn-reveal-media .arrow { transition: transform 0.3s ease; display: inline-block; }
+.btn-reveal-media.active .arrow { transform: rotate(180deg); }
+.option-card:hover { transform: translateY(-2px); }
+.option-card.selected { border: 2px solid var(--accent-blue); box-shadow: 0 0 20px rgba(79,124,255,0.15); }
+.option-card.selected .option-text { color: var(--accent-blue); }
+.two-marks-question:hover { transform: translateY(-2px); }
+.question-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--gradient-primary); background-size: 200% 200%; animation: gradientMove 3s ease-in-out infinite; }
+@keyframes gradientMove { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+@media (max-width: 768px) {
+    .options-grid { grid-template-columns: 1fr !important; }
+    .buttons { flex-direction: column; gap: 8px !important; }
+    .buttons .btn { width: 100%; justify-content: center; }
+}
+</style>
+
+<script>
+// ============================================
+// TOGGLE MEDIA
+// ============================================
+function toggleMedia(mediaId, button) {
+    const mediaContent = document.getElementById(mediaId);
+    if (mediaContent) {
+        if (mediaContent.style.display === 'none' || mediaContent.style.display === '') {
+            mediaContent.style.display = 'block';
+            if (button) {
+                button.classList.add('active');
+                const textSpan = button.querySelector('.btn-text');
+                if (textSpan) {
+                    const current = textSpan.textContent;
+                    if (current.includes('Show')) textSpan.textContent = 'Hide ' + current.replace('Show ', '');
+                    else if (current.includes('Play')) textSpan.textContent = 'Hide ' + current.replace('Play ', '');
+                }
+                const arrow = button.querySelector('.arrow');
+                if (arrow) arrow.textContent = '▲';
+            }
+            const video = mediaContent.querySelector('video');
+            if (video) video.play();
+        } else {
+            mediaContent.style.display = 'none';
+            if (button) {
+                button.classList.remove('active');
+                const textSpan = button.querySelector('.btn-text');
+                if (textSpan) {
+                    const current = textSpan.textContent;
+                    if (current.includes('Hide Image')) textSpan.textContent = 'Show Answer Image';
+                    else if (current.includes('Hide Video')) textSpan.textContent = 'Show Answer Video';
+                    else if (current.includes('Hide Audio')) textSpan.textContent = 'Play Answer Audio';
+                }
+                const arrow = button.querySelector('.arrow');
+                if (arrow) arrow.textContent = '▼';
+            }
+            const video = mediaContent.querySelector('video');
+            if (video) video.pause();
+        }
+    }
+}
+
+// ============================================
+// 2 MARKS TOGGLE
+// ============================================
+function toggleTwoMarks() {
+    const answerDiv = document.getElementById('twoMarksAnswer');
+    const icon = document.getElementById('clickIcon');
+    const isRevealed = document.getElementById('isRevealed');
+    if (answerDiv) {
+        if (answerDiv.style.display === 'none' || answerDiv.style.display === '') {
+            answerDiv.style.display = 'block';
+            icon.textContent = '✅';
+            isRevealed.value = 'true';
+            const video = document.getElementById('answerVideoPlayer');
+            if (video) video.play();
+            showToast('🎉 Answer revealed! You earned 2 marks!', 'success');
+        }
+    }
+}
+
+function exitSurvey() {
+    if (confirm('Are you sure you want to logout?')) {
+        window.location.href = '{{ url_for("logout") }}';
+    }
+}
+
+// ============================================
+// SAVE AND CONTINUE
+// ============================================
+let startTime = Date.now();
+
+function saveAndContinue() {
+    const form = document.getElementById('surveyForm');
+    const formData = new FormData(form);
+    const questionId = parseInt(formData.get('question_id'));
+    const questionType = formData.get('question_type');
+    const isRevealed = document.getElementById('isRevealed') ? document.getElementById('isRevealed').value === 'true' : false;
+    
+    const selectedOptions = [];
+    document.querySelectorAll('input[name="options"]:checked').forEach(cb => {
+        selectedOptions.push(parseInt(cb.value));
+    });
+    
+    const timeSpent = Math.floor((Date.now() - startTime) / 1000);
+    
+    if ((questionType === 'survey' || questionType === 'quiz') && selectedOptions.length === 0) {
+        if (!confirm('You haven\'t selected any options. Continue anyway?')) return;
+    }
+    
+    if (questionType === 'two_marks' && !isRevealed) {
+        if (!confirm('⚠️ You haven\'t revealed the answer. Continue without earning marks?')) return;
+    }
+    
+    const data = {
+        question_id: questionId,
+        question_type: questionType,
+        selected_options: selectedOptions,
+        text_response: formData.get('text_response') || '',
+        is_revealed: isRevealed,
+        time_spent: timeSpent
+    };
+    
+    const nextBtn = document.getElementById('nextBtn');
+    const originalText = nextBtn.innerHTML;
+    nextBtn.classList.add('loading');
+    nextBtn.innerHTML = '<span class="spinner"></span> Saving...';
+    nextBtn.disabled = true;
+    
+    fetch('{{ url_for("save_response") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const nextIndex = {{ current_index + 1 }};
+            if (nextIndex >= {{ total }}) {
+                window.location.href = '{{ url_for("final_feedback") }}';
+            } else {
+                window.location.href = '{{ url_for("survey") }}?index=' + nextIndex;
+            }
+        } else {
+            showToast('Error saving response. Please try again.', 'error');
+            nextBtn.classList.remove('loading');
+            nextBtn.innerHTML = originalText;
+            nextBtn.disabled = false;
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        const nextIndex = {{ current_index + 1 }};
+        if (nextIndex >= {{ total }}) {
+            window.location.href = '{{ url_for("final_feedback") }}';
+        } else {
+            window.location.href = '{{ url_for("survey") }}?index=' + nextIndex;
+        }
+    });
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' && !e.target.matches('input, textarea, select')) {
+        const nextBtn = document.getElementById('nextBtn');
+        if (nextBtn && !nextBtn.disabled) { e.preventDefault(); saveAndContinue(); }
+    }
+    if (e.key === 'ArrowLeft' && !e.target.matches('input, textarea, select')) {
+        const prevBtn = document.querySelector('.btn-secondary');
+        if (prevBtn) { e.preventDefault(); prevBtn.click(); }
+    }
+    if (e.key === 'Escape') { exitSurvey(); }
+});
+
+// Auto-save draft
+let autoSaveTimer;
+function startAutoSave() {
+    autoSaveTimer = setInterval(() => {
+        const form = document.getElementById('surveyForm');
+        if (form) {
+            const formData = new FormData(form);
+            const data = {
+                question_id: formData.get('question_id'),
+                selected_options: Array.from(formData.getAll('options')),
+                text_response: formData.get('text_response') || ''
+            };
+            localStorage.setItem('survey_draft_' + formData.get('question_id'), JSON.stringify(data));
+        }
+    }, 15000);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('surveyForm');
+    if (form) {
+        const questionId = form.querySelector('input[name="question_id"]').value;
+        const draft = localStorage.getItem('survey_draft_' + questionId);
+        if (draft) {
+            try {
+                const data = JSON.parse(draft);
+                if (data.text_response) {
+                    const textarea = form.querySelector('textarea[name="text_response"]');
+                    if (textarea && !textarea.value) textarea.value = data.text_response;
+                }
+            } catch (e) { console.error('Error restoring draft:', e); }
+        }
+    }
+    startAutoSave();
+});
+
+document.addEventListener('beforeunload', function() {
+    const form = document.getElementById('surveyForm');
+    if (form) {
+        const questionId = form.querySelector('input[name="question_id"]').value;
+        localStorage.removeItem('survey_draft_' + questionId);
+    }
+});
+</script>
+{% endif %}
+
+<!-- ============================================ -->
+<!-- FINAL FEEDBACK -->
+<!-- ============================================ -->
+{% elif show_final_feedback %}
+
+<div class="page active" id="feedbackPage">
+    <div class="feedback-header" style="text-align: center; margin-bottom: 25px;">
+        <h2 style="font-size: 30px; color: var(--text-secondary);">🌟 Final Feedback</h2>
+        <p class="subtitle" style="color: var(--text-muted); font-size: 15px;">Help us improve your experience</p>
+    </div>
+    
+    <form method="post" action="{{ url_for('final_feedback') }}" id="feedbackForm" style="max-width: 600px; margin: 0 auto;">
+        <div style="margin-bottom: 20px; padding: 18px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+            <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; font-size: 15px;">1. How would you rate your overall experience?</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px;">
+                <label style="display: flex; flex-direction: column; align-items: center; padding: 12px; border-radius: 14px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); cursor: pointer; transition: all 0.3s ease;">
+                    <input type="radio" name="rating" value="Excellent" required style="display: none;">
+                    <span style="font-size: 28px;">⭐</span>
+                    <span style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">Excellent</span>
+                </label>
+                <label style="display: flex; flex-direction: column; align-items: center; padding: 12px; border-radius: 14px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); cursor: pointer; transition: all 0.3s ease;">
+                    <input type="radio" name="rating" value="Good" style="display: none;">
+                    <span style="font-size: 28px;">👍</span>
+                    <span style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">Good</span>
+                </label>
+                <label style="display: flex; flex-direction: column; align-items: center; padding: 12px; border-radius: 14px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); cursor: pointer; transition: all 0.3s ease;">
+                    <input type="radio" name="rating" value="Average" style="display: none;">
+                    <span style="font-size: 28px;">👌</span>
+                    <span style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">Average</span>
+                </label>
+                <label style="display: flex; flex-direction: column; align-items: center; padding: 12px; border-radius: 14px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); cursor: pointer; transition: all 0.3s ease;">
+                    <input type="radio" name="rating" value="Poor" style="display: none;">
+                    <span style="font-size: 28px;">👎</span>
+                    <span style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">Poor</span>
+                </label>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 20px; padding: 18px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+            <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 10px; font-size: 15px;">2. What did you like most about this experience?</p>
+            <textarea name="liked" placeholder="Tell us what you enjoyed..." style="width: 100%; padding: 14px 18px; border: none; border-radius: 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 14px; font-family: inherit; resize: vertical; min-height: 70px; color: var(--text-primary); outline: none;"></textarea>
+        </div>
+
+        <div style="margin-bottom: 20px; padding: 18px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+            <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 10px; font-size: 15px;">3. What could we improve?</p>
+            <textarea name="improvements" placeholder="Your suggestions..." style="width: 100%; padding: 14px 18px; border: none; border-radius: 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 14px; font-family: inherit; resize: vertical; min-height: 70px; color: var(--text-primary); outline: none;"></textarea>
+        </div>
+
+        <div style="margin-bottom: 20px; padding: 18px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+            <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 12px; font-size: 15px;">4. Would you recommend this website to others?</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px;">
+                <label style="display: flex; flex-direction: column; align-items: center; padding: 12px; border-radius: 14px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); cursor: pointer; transition: all 0.3s ease;">
+                    <input type="radio" name="recommend" value="Definitely" required style="display: none;">
+                    <span style="font-size: 28px;">✅</span>
+                    <span style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">Definitely</span>
+                </label>
+                <label style="display: flex; flex-direction: column; align-items: center; padding: 12px; border-radius: 14px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); cursor: pointer; transition: all 0.3s ease;">
+                    <input type="radio" name="recommend" value="Maybe" style="display: none;">
+                    <span style="font-size: 28px;">🤷</span>
+                    <span style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">Maybe</span>
+                </label>
+                <label style="display: flex; flex-direction: column; align-items: center; padding: 12px; border-radius: 14px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); cursor: pointer; transition: all 0.3s ease;">
+                    <input type="radio" name="recommend" value="No" style="display: none;">
+                    <span style="font-size: 28px;">❌</span>
+                    <span style="font-size: 12px; color: var(--text-muted); margin-top: 3px;">No</span>
+                </label>
+            </div>
+        </div>
+        
+        <div style="margin-bottom: 20px; padding: 18px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+            <p style="font-weight: 600; color: var(--text-secondary); margin-bottom: 10px; font-size: 15px;">5. Any additional comments?</p>
+            <textarea name="additional" placeholder="Share any other thoughts..." style="width: 100%; padding: 14px 18px; border: none; border-radius: 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 14px; font-family: inherit; resize: vertical; min-height: 70px; color: var(--text-primary); outline: none;"></textarea>
+        </div>
+
+        <div class="buttons" style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 10px;">
+            <button type="button" class="btn btn-secondary" onclick="window.location.href='{{ url_for('survey') }}?index={{ total - 1 if total else 0 }}'" style="padding: 12px 25px; font-size: 15px;">
+                <span class="icon-left">←</span> Previous
+            </button>
+            <button type="submit" class="btn btn-primary btn-lg" id="feedbackSubmit" style="padding: 12px 30px; font-size: 16px;">
+                <span class="icon">📋</span> Submit Feedback →
+            </button>
+            <button type="button" class="btn btn-danger" onclick="exitSurvey()" style="padding: 12px 25px; font-size: 15px;">🚪 Logout</button>
+        </div>
+    </form>
+</div>
+
+<script>
+function exitSurvey() {
+    if (confirm('Are you sure you want to logout?')) {
+        window.location.href = '{{ url_for("logout") }}';
+    }
+}
+document.getElementById('feedbackForm').addEventListener('submit', function(e) {
+    const submitBtn = document.getElementById('feedbackSubmit');
+    submitBtn.classList.add('loading');
+    submitBtn.innerHTML = '<span class="spinner"></span> Submitting...';
+    submitBtn.disabled = true;
+});
+</script>
+
+<!-- ============================================ -->
+<!-- SUMMARY -->
+<!-- ============================================ -->
+{% elif show_summary %}
+
+<div class="page active" id="summaryPage">
+    <div style="text-align: center; margin-bottom: 25px;">
+        <h2 style="font-size: 30px; color: var(--text-secondary);">📋 Your Complete Feedback</h2>
+        <p style="color: var(--text-muted); font-size: 15px;">Here's everything you shared with us:</p>
+    </div>
+    
+    <div style="max-width: 700px; margin: 0 auto;">
+        {% for response in responses %}
+        <div style="padding: 16px 20px; border-radius: 16px; background: var(--card-bg); box-shadow: var(--card-shadow); margin-bottom: 12px; border-left: 4px solid var(--accent-blue);">
+            <h3 style="color: var(--accent-blue); font-size: 16px; margin-bottom: 8px;">{{ response.question.text|truncate(50) }}</h3>
+            <div style="color: var(--text-secondary); font-size: 14px; line-height: 1.5;">
+                {% if response.options %}
+                    <strong style="color: var(--text-primary);">Selected:</strong> 
+                    {% for opt in response.options %}
+                        <span style="display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 11px; color: var(--text-secondary);">{{ opt.text }}</span>{% if not loop.last %} · {% endif %}
+                    {% endfor %}
+                    <br>
+                {% endif %}
+                {% if response.text_response %}
+                    <strong style="color: var(--text-primary);">Reply:</strong> <span style="font-style: italic;">"{{ response.text_response }}"</span>
+                {% else %}
+                    <span style="color: var(--text-muted); font-style: italic;">No reply provided</span>
+                {% endif %}
+                <br>
+                <span style="display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-top: 5px; background: #d4edda; color: #155724;">{{ response.marks_earned }}/{{ response.question.marks }} Marks</span>
+            </div>
+        </div>
+        {% endfor %}
+        
+        <div style="padding: 20px; border-radius: 16px; background: var(--card-bg); box-shadow: var(--card-shadow); margin-bottom: 12px; border-left: 4px solid var(--accent-green);">
+            <h3 style="color: var(--accent-green); font-size: 17px; margin-bottom: 8px;">📊 Total Marks Summary</h3>
+            <div>
+                <div style="font-size: 26px; font-weight: 700; color: var(--accent-green);">
+                    {{ total_marks }} / {{ possible_marks }} Marks
+                    <span style="font-size: 15px; font-weight: 400; color: var(--text-muted); display: block; margin-top: 3px;">
+                        {% if possible_marks > 0 %}{{ (total_marks / possible_marks * 100)|round|int }}% Score{% endif %}
+                    </span>
+                </div>
+                <div style="margin-top: 12px; height: 6px; border-radius: 10px; background: var(--bg-primary); box-shadow: var(--inset-shadow); overflow: hidden;">
+                    <div style="height: 100%; border-radius: 10px; background: var(--gradient-primary); width: {% if possible_marks > 0 %}{{ (total_marks / possible_marks * 100) }}{% else %}0{% endif %}%; transition: width 1s ease;"></div>
+                </div>
+            </div>
+        </div>
+        
+        {% if final_feedback %}
+        <div style="padding: 16px 20px; border-radius: 16px; background: var(--card-bg); box-shadow: var(--card-shadow); margin-bottom: 12px; border-left: 4px solid var(--accent-purple);">
+            <h3 style="color: var(--accent-purple); font-size: 17px; margin-bottom: 8px;">🌟 Final Feedback</h3>
+            <div style="color: var(--text-secondary); font-size: 14px; line-height: 1.5;">
+                {% if final_feedback.rating %}<strong>Rating:</strong> {{ final_feedback.rating }}<br>{% endif %}
+                {% if final_feedback.liked %}<strong>What you liked:</strong> "{{ final_feedback.liked }}"<br>{% endif %}
+                {% if final_feedback.improvements %}<strong>Improvements:</strong> "{{ final_feedback.improvements }}"<br>{% endif %}
+                {% if final_feedback.recommend %}<strong>Would recommend:</strong> {{ final_feedback.recommend }}<br>{% endif %}
+                {% if final_feedback.additional %}<strong>Additional:</strong> "{{ final_feedback.additional }}"<br>{% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div style="display: flex; justify-content: center; gap: 15px; margin-top: 25px; flex-wrap: wrap;">
+        <a href="{{ url_for('survey') }}" class="btn btn-primary btn-lg" style="padding: 12px 30px; font-size: 16px;">🔄 Restart Survey</a>
+        <a href="{{ url_for('logout') }}" class="btn btn-danger btn-lg" style="padding: 12px 30px; font-size: 16px;">🚪 Logout</a>
+    </div>
+</div>
+
+<style>
+@media (max-width: 600px) {
+    #summaryPage h2 { font-size: 22px !important; }
+    #summaryPage > div > div { padding: 12px 16px !important; }
+}
+</style>
+
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2 style="color: var(--text-secondary); margin-bottom: 20px;">✏️ Edit Question</h2>
+
+<div style="max-width: 800px; margin: 0 auto;">
+    <div style="padding: 20px; border-radius: 18px; background: var(--bg-primary); box-shadow: var(--card-shadow); margin-bottom: 20px; border-left: 4px solid var(--accent-blue);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <span style="font-weight: 600; color: var(--accent-blue);">❓ Question</span>
+            <span style="color: var(--text-muted); font-size: 12px;">{{ question.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+        </div>
+        <div style="font-size: 17px; color: var(--text-secondary); line-height: 1.6;">{{ question.text }}</div>
+    </div>
+    
+    <form method="post" style="display: flex; flex-direction: column; gap: 18px;">
+        <div>
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Question Text</label>
+            <textarea name="text" required style="width: 100%; padding: 16px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 80px; font-family: inherit;">{{ question.text }}</textarea>
+        </div>
+        
+        <div>
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Answer Text (Optional)</label>
+            <textarea name="answer_text" style="width: 100%; padding: 16px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 80px; font-family: inherit;">{{ question.answer_text or '' }}</textarea>
+        </div>
+        
+        {% if question.image_data or question.video_data or question.audio_data %}
+        <div style="padding: 16px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+            <h4 style="color: var(--text-secondary); margin-bottom: 12px;">📎 Question Media</h4>
+            
+            {% if question.image_data %}
+            <div style="display: flex; align-items: center; gap: 15px; padding: 10px; background: var(--bg-primary); border-radius: 12px; margin-bottom: 8px; flex-wrap: wrap;">
+                <span>🖼️ Image</span>
+                <span style="color: var(--text-muted); font-size: 12px;">{{ question.image_filename }}</span>
+                <form method="post" action="{{ url_for('delete_question_media', question_id=question.id) }}" style="display: inline;">
+                    <input type="hidden" name="media_type" value="image">
+                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this image?')">🗑️</button>
+                </form>
+            </div>
+            {% endif %}
+            
+            {% if question.video_data %}
+            <div style="display: flex; align-items: center; gap: 15px; padding: 10px; background: var(--bg-primary); border-radius: 12px; margin-bottom: 8px; flex-wrap: wrap;">
+                <span>🎬 Video</span>
+                <span style="color: var(--text-muted); font-size: 12px;">{{ question.video_filename }}</span>
+                <form method="post" action="{{ url_for('delete_question_media', question_id=question.id) }}" style="display: inline;">
+                    <input type="hidden" name="media_type" value="video">
+                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this video?')">🗑️</button>
+                </form>
+            </div>
+            {% endif %}
+            
+            {% if question.audio_data %}
+            <div style="display: flex; align-items: center; gap: 15px; padding: 10px; background: var(--bg-primary); border-radius: 12px; margin-bottom: 8px; flex-wrap: wrap;">
+                <span>🎵 Audio</span>
+                <span style="color: var(--text-muted); font-size: 12px;">{{ question.audio_filename }}</span>
+                <form method="post" action="{{ url_for('delete_question_media', question_id=question.id) }}" style="display: inline;">
+                    <input type="hidden" name="media_type" value="audio">
+                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this audio?')">🗑️</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        {% if question.has_answer and (question.answer_image_data or question.answer_video_data or question.answer_audio_data) %}
+        <div style="padding: 16px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-left: 3px solid var(--accent-green);">
+            <h4 style="color: var(--accent-green); margin-bottom: 12px;">📎 Answer Media</h4>
+            
+            {% if question.answer_image_data %}
+            <div style="display: flex; align-items: center; gap: 15px; padding: 10px; background: var(--bg-primary); border-radius: 12px; margin-bottom: 8px; flex-wrap: wrap;">
+                <span>🖼️ Answer Image</span>
+                <span style="color: var(--text-muted); font-size: 12px;">{{ question.answer_image_filename }}</span>
+                <form method="post" action="{{ url_for('delete_question_media', question_id=question.id) }}" style="display: inline;">
+                    <input type="hidden" name="media_type" value="answer_image">
+                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this answer image?')">🗑️</button>
+                </form>
+            </div>
+            {% endif %}
+            
+            {% if question.answer_video_data %}
+            <div style="display: flex; align-items: center; gap: 15px; padding: 10px; background: var(--bg-primary); border-radius: 12px; margin-bottom: 8px; flex-wrap: wrap;">
+                <span>🎬 Answer Video</span>
+                <span style="color: var(--text-muted); font-size: 12px;">{{ question.answer_video_filename }}</span>
+                <form method="post" action="{{ url_for('delete_question_media', question_id=question.id) }}" style="display: inline;">
+                    <input type="hidden" name="media_type" value="answer_video">
+                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this answer video?')">🗑️</button>
+                </form>
+            </div>
+            {% endif %}
+            
+            {% if question.answer_audio_data %}
+            <div style="display: flex; align-items: center; gap: 15px; padding: 10px; background: var(--bg-primary); border-radius: 12px; margin-bottom: 8px; flex-wrap: wrap;">
+                <span>🎵 Answer Audio</span>
+                <span style="color: var(--text-muted); font-size: 12px;">{{ question.answer_audio_filename }}</span>
+                <form method="post" action="{{ url_for('delete_question_media', question_id=question.id) }}" style="display: inline;">
+                    <input type="hidden" name="media_type" value="answer_audio">
+                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this answer audio?')">🗑️</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 10px;">
+            <button type="submit" class="btn btn-success btn-lg" style="display: flex; align-items: center; gap: 10px; padding: 16px 35px; border-radius: 20px; background: var(--gradient-primary); color: white; border: none; cursor: pointer; font-weight: 700; font-size: 17px; transition: all 0.3s ease; box-shadow: 0 8px 30px rgba(79,124,255,0.4);">
+                💾 Save Changes
+            </button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-danger btn-lg" style="display: flex; align-items: center; gap: 10px; padding: 16px 35px; border-radius: 20px; background: var(--accent-red); color: white; text-decoration: none; font-weight: 700; font-size: 17px; transition: all 0.3s ease; box-shadow: 0 8px 30px rgba(231,76,60,0.3);">
+                ← Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<style>
+@media (max-width: 600px) {
+    .btn-lg { width: 100%; justify-content: center; }
+}
+</style>
+
+{% endblock %}

@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div style="max-width: 700px; margin: 0 auto;">
+    <h2 style="color: var(--text-secondary); margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 28px;">💬</span> Reply to Question
+    </h2>
+    
+    <!-- Question Preview -->
+    <div style="padding: 20px; border-radius: 18px; background: var(--bg-primary); box-shadow: var(--card-shadow); margin-bottom: 25px; border-left: 4px solid var(--accent-blue);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <span style="font-weight: 600; color: var(--accent-blue);">❓ {{ question.asker.username }}</span>
+            <span style="color: var(--text-muted); font-size: 12px;">{{ question.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+        </div>
+        <div style="font-size: 17px; color: var(--text-secondary); line-height: 1.6;">{{ question.text }}</div>
+        
+        <!-- Question Media -->
+        {% if question.image_data or question.video_data or question.audio_data %}
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding: 10px 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-radius: 12px; align-items: center;">
+            <span style="color: var(--text-muted); font-size: 12px; font-weight: 600; margin-right: 5px;">📎 Attachments:</span>
+            
+            {% if question.image_data %}
+            <button class="media-reveal-btn image-btn" onclick="toggleMedia('reply_q_img', this)" style="padding: 6px 14px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-family); font-size: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); color: var(--accent-blue); border-left: 3px solid var(--accent-blue);">
+                <span>🖼️</span>
+                <span class="btn-text">Show Image</span>
+                <span class="arrow" style="font-size: 10px;">▼</span>
+            </button>
+            {% endif %}
+            
+            {% if question.video_data %}
+            <button class="media-reveal-btn video-btn" onclick="toggleMedia('reply_q_vid', this)" style="padding: 6px 14px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-family); font-size: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); color: var(--accent-red); border-left: 3px solid var(--accent-red);">
+                <span>🎬</span>
+                <span class="btn-text">Play Video</span>
+                <span class="arrow" style="font-size: 10px;">▼</span>
+            </button>
+            {% endif %}
+            
+            {% if question.audio_data %}
+            <button class="media-reveal-btn audio-btn" onclick="toggleMedia('reply_q_aud', this)" style="padding: 6px 14px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-family); font-size: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); color: var(--accent-green); border-left: 3px solid var(--accent-green);">
+                <span>🎵</span>
+                <span class="btn-text">Play Audio</span>
+                <span class="arrow" style="font-size: 10px;">▼</span>
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <!-- Media Content -->
+        <div id="reply_q_img" class="media-content" style="display: none; margin-top: 10px;">
+            <img src="{{ get_media_url(question.image_data, 'image') }}" alt="Question image" style="max-width: 100%; max-height: 200px; border-radius: 12px; box-shadow: var(--card-shadow);">
+        </div>
+        <div id="reply_q_vid" class="media-content" style="display: none; margin-top: 10px;">
+            {% set q_vid_url = get_media_url(question.video_data, 'video') %}
+            <div class="video-container">
+                <video controls playsinline preload="metadata" src="{{ q_vid_url }}" style="max-width: 100%; max-height: 250px; border-radius: 12px; box-shadow: var(--card-shadow); width: 100%; background: #000;" onerror="this.style.display='none'; const fb = this.parentElement.querySelector('.video-fallback'); if(fb) fb.style.display='block';">
+                    <source src="{{ q_vid_url }}">
+                    <p>Your browser doesn't support HTML5 video.</p>
+                </video>
+                <div class="video-fallback" style="display: none; padding: 15px; text-align: center; background: #fff3cd; color: #856404; border-radius: 12px; margin-top: 8px;">
+                    ⚠️ Video cannot be played directly in browser. 
+                    {% if question.video_data and (question.video_data.startswith('http') or question.video_data.startswith('//')) %}
+                        <br><a href="{{ q_vid_url }}" target="_blank" rel="noopener noreferrer" style="color: #4f7cff; font-weight: bold; text-decoration: underline;">🔗 Open Video Link</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div id="reply_q_aud" class="media-content" style="display: none; margin-top: 10px;">
+            <audio controls style="width: 100%; border-radius: 12px;">
+                <source src="{{ get_media_url(question.audio_data, 'audio') }}">
+            </audio>
+        </div>
+    </div>
+    
+    <!-- Reply Form -->
+    <form method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 18px;">
+        <div>
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">
+                <span style="font-size: 18px;">✏️</span> Your Reply
+            </label>
+            <textarea name="text" required style="width: 100%; padding: 18px 22px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 120px; font-family: inherit; transition: all 0.3s ease;" placeholder="Type your reply here..."></textarea>
+        </div>
+        
+        <!-- Direct Media Upload Section -->
+        <div style="padding: 18px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-left: 4px solid var(--accent-blue);">
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 12px; font-size: 15px;">📹 Attach Video / Media directly from Device</label>
+            
+            <!-- File Upload Grid -->
+            <div class="media-upload-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                <div style="padding: 12px; border-radius: 14px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark);">
+                    <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; font-size: 13px;">🎥 Upload Video</label>
+                    <input type="file" name="video" accept="video/*" style="width: 100%; font-size: 12px; outline: none; cursor: pointer;">
+                </div>
+
+                <div style="padding: 12px; border-radius: 14px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark);">
+                    <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; font-size: 13px;">📷 Upload Image</label>
+                    <input type="file" name="image" accept="image/*" style="width: 100%; font-size: 12px; outline: none; cursor: pointer;">
+                </div>
+                
+                <div style="padding: 12px; border-radius: 14px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark);">
+                    <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; font-size: 13px;">🎵 Upload Audio</label>
+                    <input type="file" name="audio" accept="audio/*" style="width: 100%; font-size: 12px; outline: none; cursor: pointer;">
+                </div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted);">Uploaded videos are stored dynamically in Firebase Storage for Render deployment.</div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-top: 10px;">
+            <button type="submit" class="btn btn-success btn-lg" style="display: flex; align-items: center; gap: 10px; padding: 16px 35px; border-radius: 20px; background: var(--gradient-primary); color: white; border: none; cursor: pointer; font-weight: 700; font-size: 17px; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); box-shadow: 0 8px 30px rgba(79,124,255,0.4);">
+                <span style="font-size: 22px;">📤</span> Send Reply
+                <span style="transition: transform 0.3s ease;">→</span>
+            </button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-danger btn-lg" style="display: flex; align-items: center; gap: 10px; padding: 16px 35px; border-radius: 20px; background: var(--accent-red); color: white; text-decoration: none; font-weight: 700; font-size: 17px; transition: all 0.3s ease; box-shadow: 0 8px 30px rgba(231,76,60,0.3);">
+                ← Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+<style>
+.media-reveal-btn {
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.media-reveal-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 6px 6px 12px var(--shadow-light), -6px -6px 12px var(--shadow-dark);
+}
+.media-reveal-btn .arrow {
+    display: inline-block;
+    transition: transform 0.3s ease;
+}
+.media-reveal-btn.active .arrow {
+    transform: rotate(180deg);
+}
+.media-content {
+    animation: mediaReveal 0.4s ease;
+}
+@keyframes mediaReveal {
+    from { opacity: 0; transform: translateY(-10px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+button[type="submit"]:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(79,124,255,0.5);
+}
+button[type="submit"]:active {
+    transform: scale(0.97);
+}
+
+@media (max-width: 600px) {
+    .media-upload-grid { grid-template-columns: 1fr !important; }
+    .btn-lg { width: 100%; justify-content: center; }
+}
+</style>
+
+<script>
+function toggleMedia(mediaId, button) {
+    const content = document.getElementById(mediaId);
+    if (content) {
+        if (content.style.display === 'none' || content.style.display === '') {
+            content.style.display = 'block';
+            if (button) {
+                button.classList.add('active');
+                const textSpan = button.querySelector('.btn-text');
+                if (textSpan) {
+                    if (textSpan.textContent.includes('Show')) {
+                        textSpan.textContent = 'Hide';
+                    } else if (textSpan.textContent.includes('Play')) {
+                        textSpan.textContent = 'Hide';
+                    }
+                }
+            }
+            const video = content.querySelector('video');
+            if (video) video.play();
+        } else {
+            content.style.display = 'none';
+            if (button) {
+                button.classList.remove('active');
+                const textSpan = button.querySelector('.btn-text');
+                if (textSpan) {
+                    const type = button.classList.contains('image-btn') ? 'Image' :
+                                button.classList.contains('video-btn') ? 'Video' : 'Audio';
+                    textSpan.textContent = type === 'Image' ? 'Show Image' : 
+                                          type === 'Video' ? 'Play Video' : 'Play Audio';
+                }
+            }
+            const video = content.querySelector('video');
+            if (video) video.pause();
+        }
+    }
+}
+
+document.querySelectorAll('input[type="file"]').forEach(input => {
+    input.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            const size = (this.files[0].size / 1024 / 1024).toFixed(2);
+            const label = this.closest('div').querySelector('label');
+            if (label) {
+                label.textContent = label.textContent.replace(/\(.*\)/, '') + ` (${size} MB)`;
+            }
+        }
+    });
+});
+</script>
+
+{% endblock %}

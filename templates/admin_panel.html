@@ -1,0 +1,460 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="page active">
+    <div class="admin-header" style="text-align: center; margin-bottom: 30px;">
+        <h2 style="font-size: 32px; color: var(--text-secondary);">⚙️ Admin Dashboard</h2>
+        <p class="subtitle" style="color: var(--text-muted); font-size: 16px;">Manage your survey content - All data is permanently stored</p>
+    </div>
+
+<!-- ============================================ -->
+<!-- DASHBOARD SECTION -->
+<!-- ============================================ -->
+{% if section == 'dashboard' %}
+
+<!-- Stats Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; margin: 25px 0;">
+    <div style="display: flex; align-items: center; gap: 15px; padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow); transition: all 0.3s ease;">
+        <div style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: var(--bg-primary); box-shadow: 6px 6px 12px var(--shadow-light), -6px -6px 12px var(--shadow-dark); font-size: 32px; color: var(--accent-blue);">👥</div>
+        <div><h3 style="font-size: 32px; font-weight: 800; color: var(--text-secondary); margin: 0;">{{ total_users }}</h3><p style="font-size: 14px; color: var(--text-muted); margin: 0;">Total Users</p></div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 15px; padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow); transition: all 0.3s ease;">
+        <div style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: var(--bg-primary); box-shadow: 6px 6px 12px var(--shadow-light), -6px -6px 12px var(--shadow-dark); font-size: 32px; color: var(--accent-yellow);">📝</div>
+        <div><h3 style="font-size: 32px; font-weight: 800; color: var(--text-secondary); margin: 0;">{{ total_questions }}</h3><p style="font-size: 14px; color: var(--text-muted); margin: 0;">Total Questions</p></div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 15px; padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow); transition: all 0.3s ease;">
+        <div style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: var(--bg-primary); box-shadow: 6px 6px 12px var(--shadow-light), -6px -6px 12px var(--shadow-dark); font-size: 32px; color: var(--accent-green);">📊</div>
+        <div><h3 style="font-size: 32px; font-weight: 800; color: var(--text-secondary); margin: 0;">{{ total_responses }}</h3><p style="font-size: 14px; color: var(--text-muted); margin: 0;">Total Responses</p></div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 15px; padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow); transition: all 0.3s ease;">
+        <div style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; border-radius: 16px; background: var(--bg-primary); box-shadow: 6px 6px 12px var(--shadow-light), -6px -6px 12px var(--shadow-dark); font-size: 32px; color: var(--accent-red);">💬</div>
+        <div><h3 style="font-size: 32px; font-weight: 800; color: var(--text-secondary); margin: 0;">{{ total_feedback }}</h3><p style="font-size: 14px; color: var(--text-muted); margin: 0;">Feedback Submitted</p></div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div style="display: flex; gap: 15px; flex-wrap: wrap; margin: 20px 0;">
+    <a href="{{ url_for('admin_typing_text') }}" class="btn" style="background: var(--accent-purple); color: white; flex: 1; min-width: 140px; text-align: center; box-shadow: 0 8px 25px rgba(155,89,182,0.4);">✏️ Typing Text</a>
+    <a href="{{ url_for('admin_add_question') }}" class="btn btn-primary" style="flex: 1; min-width: 140px; text-align: center;">➕ Add Question</a>
+    <a href="{{ url_for('admin_music') }}" class="btn" style="background: var(--accent-yellow); color: white; flex: 1; min-width: 140px; text-align: center; box-shadow: 0 8px 25px rgba(243,156,18,0.4);">🎵 Music</a>
+    <a href="{{ url_for('admin_responses') }}" class="btn btn-secondary" style="flex: 1; min-width: 140px; text-align: center;">📊 Responses</a>
+    <a href="{{ url_for('admin_users') }}" class="btn btn-danger" style="flex: 1; min-width: 140px; text-align: center;">👥 Users</a>
+    <a href="{{ url_for('admin_settings') }}" class="btn" style="background: var(--accent-teal); color: white; flex: 1; min-width: 140px; text-align: center; box-shadow: 0 8px 25px rgba(26,188,156,0.4);">⚙️ Settings</a>
+    <a href="{{ url_for('admin_export_data') }}" class="btn" style="background: var(--accent-pink); color: white; flex: 1; min-width: 140px; text-align: center; box-shadow: 0 8px 25px rgba(232,67,147,0.4);">📤 Export</a>
+</div>
+
+<!-- Current Typing Text -->
+<div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow); margin-bottom: 25px;">
+    <h3 style="margin-bottom: 15px; color: var(--text-secondary);">📝 Current Typing Text</h3>
+    {% if typing_text %}
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); color: var(--text-secondary); font-size: 18px; line-height: 1.8;">{{ typing_text }}</div>
+    <div style="margin-top: 10px;"><a href="{{ url_for('admin_typing_text') }}" style="color: var(--accent-blue); text-decoration: none; font-size: 14px;">✏️ Edit</a></div>
+    {% else %}<p style="color: var(--text-muted); text-align: center; padding: 20px;">No typing text set. <a href="{{ url_for('admin_typing_text') }}" style="color: var(--accent-blue);">Add one now</a></p>{% endif %}
+</div>
+
+<!-- Question Types -->
+<div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow); margin-bottom: 25px;">
+    <h3 style="margin-bottom: 15px; color: var(--text-secondary);">📊 Question Types</h3>
+    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+        {% for qtype in question_types %}
+        <div style="padding: 10px 20px; border-radius: 12px; background: var(--bg-primary); box-shadow: 6px 6px 12px var(--shadow-light), -6px -6px 12px var(--shadow-dark);">
+            <strong style="color: var(--text-secondary);">{{ qtype[0]|title }}</strong>: <span style="color: var(--text-muted);">{{ qtype[1] }} questions</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Recent Responses -->
+<div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+        <h3 style="color: var(--text-secondary); margin: 0;">🕐 Recent Friend Replies</h3>
+        <a href="{{ url_for('admin_responses') }}" class="btn btn-primary btn-sm">View All Responses →</a>
+    </div>
+    {% if all_replies %}
+        {% for reply in all_replies[:5] %}
+        <div style="padding: 14px 18px; border-radius: 14px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); margin-bottom: 12px; border-left: 4px solid var(--accent-purple);">
+            <div style="font-weight: 700; color: var(--accent-blue); font-size: 14px; margin-bottom: 4px;">
+                ❓ Question #{{ reply.question.id }}: {{ reply.question.text }}
+            </div>
+            <div style="padding: 10px 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-radius: 10px; margin-top: 6px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; flex-wrap: wrap;">
+                    <span style="font-weight: 700; color: var(--accent-green); font-size: 13px;">💬 Reply by {{ reply.replier.username }}:</span>
+                    <span style="color: var(--text-muted); font-size: 11px;">{{ reply.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+                </div>
+                <div style="color: var(--text-secondary); font-size: 14px; line-height: 1.5;">{{ reply.text }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="color: var(--text-muted); text-align: center; padding: 20px;">No friend replies yet.</p>
+    {% endif %}
+</div>
+
+<!-- ============================================ -->
+<!-- TYPING TEXT MANAGEMENT -->
+<!-- ============================================ -->
+{% elif section == 'typing_text' %}
+
+<div class="admin-section">
+    <h3 style="color: var(--accent-purple); margin-bottom: 20px;">✏️ Manage Typing Animation Text</h3>
+    <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 14px;">This text appears with typing animation when users first open the survey.</p>
+    
+    <div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow); margin-bottom: 25px;">
+        <h4 style="margin-bottom: 15px; color: var(--text-secondary);">Add New Typing Text</h4>
+        <form method="post" action="{{ url_for('admin_typing_text') }}">
+            <div class="form-group">
+                <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Typing Text (supports line breaks)</label>
+                <textarea name="typing_text" required style="width: 100%; padding: 16px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 120px; font-family: inherit;" placeholder="Enter text...">{% if active_text %}{{ active_text.text }}{% endif %}</textarea>
+            </div>
+            <button type="submit" class="btn btn-secondary" style="margin-top: 10px;">💾 Save & Activate</button>
+        </form>
+    </div>
+    
+    <div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+        <h4 style="margin-bottom: 15px; color: var(--text-secondary);">All Typing Texts</h4>
+        {% for text in typing_texts %}
+        <div style="padding: 12px 16px; border-radius: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px;">
+            <div style="flex: 1;">
+                <div style="color: var(--text-secondary); font-size: 15px; line-height: 1.6; padding: 8px 12px; border-radius: 10px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">{{ text.text|truncate(150) }}</div>
+                <div style="margin-top: 5px; font-size: 12px; color: var(--text-muted);">Created: {{ text.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                {% if text.is_active %}<span style="background: var(--accent-green); color: white; padding: 2px 12px; border-radius: 20px; font-size: 12px;">✅ Active</span>
+                {% else %}<a href="{{ url_for('admin_activate_typing_text', text_id=text.id) }}" class="btn btn-sm btn-primary" style="padding: 4px 12px; font-size: 12px; min-width: auto;">Activate</a>{% endif %}
+                <form method="post" action="{{ url_for('admin_delete_typing_text', text_id=text.id) }}" style="display: inline;" onsubmit="return confirm('Delete this typing text?');">
+                    <button type="submit" class="btn btn-sm btn-danger" style="padding: 4px 12px; font-size: 12px; min-width: auto;">🗑️</button>
+                </form>
+            </div>
+        </div>
+        {% else %}<p style="text-align: center; color: var(--text-muted); padding: 20px;">No typing texts created yet.</p>{% endfor %}
+    </div>
+    <div style="margin-top: 15px;"><a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back</a></div>
+</div>
+
+<!-- ============================================ -->
+<!-- QUESTIONS MANAGEMENT -->
+<!-- ============================================ -->
+{% elif section == 'questions' %}
+
+<div class="admin-section">
+    <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 20px;">
+        <a href="{{ url_for('admin_add_question') }}" class="btn btn-primary">➕ Add Question</a>
+        <a href="{{ url_for('admin_music') }}" class="btn" style="background: var(--accent-yellow); color: white; box-shadow: 0 8px 25px rgba(243,156,18,0.4);">🎵 Music</a>
+        <a href="{{ url_for('admin_responses') }}" class="btn btn-secondary">📊 Responses</a>
+        <a href="{{ url_for('admin_typing_text') }}" class="btn" style="background: var(--accent-purple); color: white; box-shadow: 0 8px 25px rgba(155,89,182,0.4);">✏️ Typing</a>
+    </div>
+    
+    {% for q in questions %}
+    <div style="padding: 16px 20px; border-radius: 16px; background: var(--card-bg); box-shadow: var(--card-shadow); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span style="display: inline-block; color: white; padding: 2px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: {% if q.type == 'survey' %}#4f7cff{% elif q.type == 'two_marks' %}#f39c12{% else %}#2ecc71{% endif %};">{{ q.type|title }}</span>
+            <span style="color: var(--text-secondary); font-weight: 500;">{{ q.text|truncate(50) }}</span>
+            <span style="color: var(--text-muted); font-size: 13px;">{{ q.marks }} Mark{% if q.marks > 1 %}s{% endif %}</span>
+            {% if q.image %}<span style="color: var(--text-muted); font-size: 12px;">🖼️</span>{% endif %}
+            {% if q.video %}<span style="color: var(--text-muted); font-size: 12px;">🎥</span>{% endif %}
+            {% if q.audio %}<span style="color: var(--text-muted); font-size: 12px;">🎵</span>{% endif %}
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="{{ url_for('admin_edit_question', question_id=q.id) }}" class="btn btn-sm btn-primary" style="padding: 6px 16px; font-size: 13px; min-width: auto;">✏️ Edit</a>
+            <form method="post" action="{{ url_for('admin_delete_question', question_id=q.id) }}" style="display: inline;" onsubmit="return confirm('⚠️ Delete this question and ALL its data? This cannot be undone!');">
+                <button type="submit" class="btn btn-sm btn-danger" style="padding: 6px 16px; font-size: 13px; min-width: auto;">🗑️ Delete</button>
+            </form>
+        </div>
+    </div>
+    {% else %}<p style="text-align: center; color: var(--text-muted); padding: 40px;">No questions created yet.</p>{% endfor %}
+</div>
+
+<!-- ============================================ -->
+<!-- ADD QUESTION -->
+<!-- ============================================ -->
+{% elif section == 'add_question' %}
+
+<div class="admin-section">
+    <h3 style="color: var(--accent-blue); margin-bottom: 20px;">➕ Add New Question</h3>
+    
+    <form method="post" enctype="multipart/form-data" id="addQuestionForm" style="display: flex; flex-direction: column; gap: 20px; padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+        <div class="form-group">
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Question Type</label>
+            <select name="type" id="questionType" required onchange="toggleOptionsFields()" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; cursor: pointer;">
+                <option value="survey">📝 Survey Question</option>
+                <option value="two_marks">📝 2 Marks Question</option>
+                <option value="quiz">🧠 Quiz Question</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Question Text</label>
+            <textarea name="text" required style="width: 100%; padding: 16px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 80px; font-family: inherit;" placeholder="Enter question...">Enter your question here...</textarea>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="form-group">
+                <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Marks</label>
+                <input type="number" name="marks" value="1" min="1" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+            </div>
+            <div class="form-group">
+                <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Order</label>
+                <input type="number" name="order" value="0" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">📷 Upload Image (Optional)</label>
+            <input type="file" name="image" accept="image/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+        </div>
+        
+        <div class="form-group">
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎥 Upload Video (Optional)</label>
+            <input type="file" name="video" accept="video/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+        </div>
+        
+        <div class="form-group">
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎵 Upload Audio (Optional)</label>
+            <input type="file" name="audio" accept="audio/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+        </div>
+        
+        <div id="optionsSection" style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+            <h4 style="margin-bottom: 15px; color: var(--accent-blue);">📋 Options</h4>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 15px;">Add options for Survey and Quiz questions. Mark correct for Quiz.</p>
+            <div id="optionsContainer">
+                <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; margin-bottom: 10px; padding: 15px; border-radius: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark);">
+                    <div><label style="font-size: 13px; color: var(--text-muted); display: block;">Option Text</label><input type="text" name="option_text[]" placeholder="Enter option..." style="width: 100%; padding: 10px 16px; border: none; border-radius: 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); outline: none; font-size: 14px;"></div>
+                    <div style="max-width: 120px;"><label style="font-size: 13px; color: var(--text-muted); display: block;">Image</label><input type="file" name="option_image[]" accept="image/*" style="width: 100%; padding: 8px 12px; border: none; border-radius: 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 12px; outline: none;"></div>
+                    <div style="display: flex; align-items: center; gap: 5px; padding-top: 20px;"><label style="font-size: 13px; color: var(--text-muted); cursor: pointer;"><input type="checkbox" name="is_correct[]" value="0" style="transform: scale(1.3); accent-color: var(--accent-blue);"> ✅ Correct</label></div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+                <button type="button" onclick="addOptionRow()" class="btn btn-primary" style="padding: 10px 20px; font-size: 14px; min-width: auto;">➕ Add</button>
+                <button type="button" onclick="removeOptionRow()" class="btn btn-danger" style="padding: 10px 20px; font-size: 14px; min-width: auto;">➖ Remove</button>
+            </div>
+        </div>
+        
+        <div id="twoMarksSection" style="display: none; padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+            <h4 style="margin-bottom: 15px; color: var(--accent-yellow);">📝 2 Marks Answer</h4>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Answer Text</label><textarea name="answer_text" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 60px; font-family: inherit;" placeholder="Correct answer...">Enter the correct answer here...</textarea></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Explanation</label><textarea name="explanation" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 80px; font-family: inherit;" placeholder="Explain why...">Explain why this is the correct answer...</textarea></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">📷 Image (Optional)</label><input type="file" name="answer_image" accept="image/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎥 Video (Optional)</label><input type="file" name="answer_video" accept="video/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎵 Audio (Optional)</label><input type="file" name="answer_audio" accept="audio/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+        </div>
+        
+        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+            <button type="submit" class="btn btn-secondary btn-lg">✅ Create Question</button>
+            <a href="{{ url_for('admin_questions') }}" class="btn btn-danger btn-lg">← Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+function toggleOptionsFields() {
+    const type = document.getElementById('questionType').value;
+    const optionsSection = document.getElementById('optionsSection');
+    const twoMarksSection = document.getElementById('twoMarksSection');
+    if (type === 'survey' || type === 'quiz') {
+        optionsSection.style.display = 'block';
+        twoMarksSection.style.display = 'none';
+        document.querySelector('#optionsSection h4').textContent = type === 'quiz' ? '🧠 Quiz Options' : '📋 Survey Options';
+    } else if (type === 'two_marks') {
+        optionsSection.style.display = 'none';
+        twoMarksSection.style.display = 'block';
+    }
+}
+function addOptionRow() {
+    const container = document.getElementById('optionsContainer');
+    const rowCount = container.children.length;
+    const row = document.createElement('div');
+    row.style.cssText = 'display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; margin-bottom: 10px; padding: 15px; border-radius: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark);';
+    row.innerHTML = `<div><label style="font-size: 13px; color: var(--text-muted); display: block;">Option Text</label><input type="text" name="option_text[]" placeholder="Enter option..." style="width: 100%; padding: 10px 16px; border: none; border-radius: 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); outline: none; font-size: 14px;"></div><div style="max-width: 120px;"><label style="font-size: 13px; color: var(--text-muted); display: block;">Image</label><input type="file" name="option_image[]" accept="image/*" style="width: 100%; padding: 8px 12px; border: none; border-radius: 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 12px; outline: none;"></div><div style="display: flex; align-items: center; gap: 5px; padding-top: 20px;"><label style="font-size: 13px; color: var(--text-muted); cursor: pointer;"><input type="checkbox" name="is_correct[]" value="${rowCount}" style="transform: scale(1.3); accent-color: var(--accent-blue);"> ✅ Correct</label></div>`;
+    container.appendChild(row);
+}
+function removeOptionRow() {
+    const container = document.getElementById('optionsContainer');
+    if (container.children.length > 1) container.removeChild(container.lastChild);
+    else alert('You need at least one option!');
+}
+document.addEventListener('DOMContentLoaded', function() { toggleOptionsFields(); });
+</script>
+
+<!-- ============================================ -->
+<!-- EDIT QUESTION -->
+<!-- ============================================ -->
+{% elif section == 'edit_question' %}
+<!-- Edit question section - same as before with proper persistence -->
+<div class="admin-section">
+    <h3 style="color: var(--accent-blue); margin-bottom: 20px;">✏️ Editing: {{ question.text|truncate(50) }}</h3>
+    <form method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 20px; padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow); margin-bottom: 25px;">
+        <div class="form-group">
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Question Type</label>
+            <select name="type" required style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; cursor: pointer;">
+                <option value="survey" {% if question.type == 'survey' %}selected{% endif %}>📝 Survey</option>
+                <option value="two_marks" {% if question.type == 'two_marks' %}selected{% endif %}>📝 2 Marks</option>
+                <option value="quiz" {% if question.type == 'quiz' %}selected{% endif %}>🧠 Quiz</option>
+            </select>
+        </div>
+        <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Question Text</label><textarea name="text" required style="width: 100%; padding: 16px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 80px; font-family: inherit;">{{ question.text }}</textarea></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Marks</label><input type="number" name="marks" value="{{ question.marks }}" min="1" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Order</label><input type="number" name="order" value="{{ question.order }}" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+        </div>
+        {% if question.image %}<div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Current Image</label><img src="{{ url_for('serve_media', filename=question.image) }}" alt="Current" style="max-width: 200px; border-radius: 12px;"></div>{% endif %}
+        <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">📷 Upload New Image</label><input type="file" name="image" accept="image/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+        {% if question.video %}<div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Current Video</label><video controls style="max-width: 300px; border-radius: 12px;"><source src="{{ url_for('serve_media', filename=question.video) }}" type="video/mp4"></video></div>{% endif %}
+        <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎥 Upload New Video</label><input type="file" name="video" accept="video/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+        {% if question.audio %}<div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Current Audio</label><audio controls style="width: 100%;"><source src="{{ url_for('serve_media', filename=question.audio) }}" type="audio/mpeg"></audio></div>{% endif %}
+        <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎵 Upload New Audio</label><input type="file" name="audio" accept="audio/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+        <div style="display: flex; gap: 15px; flex-wrap: wrap;"><button type="submit" class="btn btn-secondary">💾 Save Changes</button><a href="{{ url_for('admin_questions') }}" class="btn btn-danger">← Cancel</a></div>
+    </form>
+    
+    <!-- Options Management -->
+    <div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow); margin-bottom: 25px;">
+        <h4 style="margin-bottom: 15px; color: var(--text-secondary);">📋 Options</h4>
+        <form method="post" action="{{ url_for('admin_add_option') }}" enctype="multipart/form-data" style="margin-bottom: 20px;">
+            <input type="hidden" name="question_id" value="{{ question.id }}">
+            <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: end; padding: 15px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
+                <div><label style="font-size: 13px; color: var(--text-muted); display: block;">Option Text</label><input type="text" name="text" required placeholder="Enter option..." style="width: 100%; padding: 10px 16px; border: none; border-radius: 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); outline: none; font-size: 14px;"></div>
+                <div style="max-width: 100px;"><label style="font-size: 13px; color: var(--text-muted); display: block;">Order</label><input type="number" name="order" value="0" style="width: 100%; padding: 10px 16px; border: none; border-radius: 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); outline: none; font-size: 14px;"></div>
+                <div style="display: flex; align-items: center; gap: 10px; padding-top: 20px;"><label style="font-size: 13px; color: var(--text-muted); cursor: pointer;"><input type="checkbox" name="is_correct" style="transform: scale(1.3); accent-color: var(--accent-blue);"> ✅ Correct</label><button type="submit" class="btn btn-primary" style="padding: 10px 20px; font-size: 14px; min-width: auto;">Add</button></div>
+            </div>
+        </form>
+        {% for option in options %}
+        <div style="padding: 10px 16px; border-radius: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); margin-top: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <div>{% if option.is_correct %}✅ {% endif %}{{ option.text }} {% if option.image %}<span style="color: var(--text-muted); font-size: 12px;">🖼️</span>{% endif %}{% if option.video %}<span style="color: var(--text-muted); font-size: 12px;">🎥</span>{% endif %}</div>
+            <div><form method="post" action="{{ url_for('admin_delete_option', option_id=option.id) }}" style="display: inline;" onsubmit="return confirm('Delete this option?');"><button type="submit" class="btn btn-sm btn-danger" style="padding: 4px 12px; font-size: 12px; min-width: auto;">🗑️</button></form></div>
+        </div>
+        {% else %}<p style="color: var(--text-muted); text-align: center; padding: 20px;">No options.</p>{% endfor %}
+    </div>
+    
+    <!-- 2 Marks Answer -->
+    {% if question.type == 'two_marks' %}
+    <div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+        <h4 style="margin-bottom: 15px; color: var(--text-secondary);">📝 2 Marks Answer</h4>
+        <form method="post" action="{{ url_for('admin_add_two_marks_answer') }}" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 15px;">
+            <input type="hidden" name="question_id" value="{{ question.id }}">
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Answer Text</label><textarea name="answer_text" required style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 60px; font-family: inherit;">{{ two_marks_answer.answer_text if two_marks_answer else '' }}</textarea></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Explanation</label><textarea name="explanation" required style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 80px; font-family: inherit;">{{ two_marks_answer.explanation if two_marks_answer else '' }}</textarea></div>
+            {% if two_marks_answer and two_marks_answer.image %}<div><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Current Image</label><img src="{{ url_for('serve_media', filename=two_marks_answer.image) }}" alt="Current" style="max-width: 200px; border-radius: 12px;"></div>{% endif %}
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">📷 Upload Image</label><input type="file" name="image" accept="image/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+            {% if two_marks_answer and two_marks_answer.video %}<div><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Current Video</label><video controls style="max-width: 300px; border-radius: 12px;"><source src="{{ url_for('serve_media', filename=two_marks_answer.video) }}" type="video/mp4"></video></div>{% endif %}
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎥 Upload Video</label><input type="file" name="video" accept="video/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+            {% if two_marks_answer and two_marks_answer.audio %}<div><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Current Audio</label><audio controls style="width: 100%;"><source src="{{ url_for('serve_media', filename=two_marks_answer.audio) }}" type="audio/mpeg"></audio></div>{% endif %}
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎵 Upload Audio</label><input type="file" name="audio" accept="audio/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+            <button type="submit" class="btn btn-secondary">💾 Save Answer</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<!-- ============================================ -->
+<!-- MUSIC MANAGEMENT -->
+<!-- ============================================ -->
+{% elif section == 'music' %}
+<div class="admin-section">
+    <div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow); margin-bottom: 25px;">
+        <h4 style="margin-bottom: 15px; color: var(--text-secondary);">🎵 Upload Background Music</h4>
+        <form method="post" action="{{ url_for('admin_add_music') }}" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 15px;">
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Track Title</label><input type="text" name="title" required placeholder="Enter title..." style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Audio File (MP3, MP4, WAV, M4A)</label><input type="file" name="file" accept="audio/*" required style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Order</label><input type="number" name="order" value="0" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;"><input type="checkbox" name="is_active" checked style="transform: scale(1.3); accent-color: var(--accent-blue);"> Active</label></div>
+            <button type="submit" class="btn" style="background: var(--accent-yellow); color: white; box-shadow: 0 8px 25px rgba(243,156,18,0.4);">🎵 Upload</button>
+        </form>
+    </div>
+    <div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+        <h4 style="margin-bottom: 15px; color: var(--text-secondary);">Current Tracks</h4>
+        {% for track in tracks %}
+        <div style="padding: 12px 16px; border-radius: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div><strong style="color: var(--text-secondary);">{{ track.title }}</strong> <span style="font-size: 13px; {% if track.is_active %}color: var(--accent-green);{% else %}color: var(--text-muted);{% endif %}">{% if track.is_active %}✅ Active{% else %}⏸️ Inactive{% endif %}</span> <span style="color: var(--text-muted); font-size: 12px;">Order: {{ track.order }}</span> <a href="{{ url_for('serve_media', filename=track.file_path) }}" target="_blank" style="color: var(--accent-blue); font-size: 13px;">▶ Play</a></div>
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <form method="post" action="{{ url_for('admin_toggle_music', track_id=track.id) }}" style="display: inline;"><button type="submit" class="btn btn-sm" style="padding: 4px 12px; font-size: 12px; min-width: auto; background: var(--accent-yellow); color: white;">{% if track.is_active %}⏸️ Deactivate{% else %}▶️ Activate{% endif %}</button></form>
+                <form method="post" action="{{ url_for('admin_delete_music', track_id=track.id) }}" style="display: inline;" onsubmit="return confirm('Delete this track?');"><button type="submit" class="btn btn-sm btn-danger" style="padding: 4px 12px; font-size: 12px; min-width: auto;">🗑️</button></form>
+            </div>
+        </div>
+        {% else %}<p style="text-align: center; color: var(--text-muted); padding: 20px;">No tracks uploaded.</p>{% endfor %}
+    </div>
+    <div style="margin-top: 15px;"><a href="{{ url_for('admin_questions') }}" class="btn btn-secondary">← Back</a></div>
+</div>
+
+<!-- ============================================ -->
+<!-- RESPONSES -->
+<!-- ============================================ -->
+{% elif section == 'responses' %}
+<div class="admin-section">
+    <div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+        <div style="margin-bottom: 15px;"><input type="text" id="responseSearch" placeholder="🔍 Search responses..." style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+        {% for response in responses %}
+        <div class="response-item" style="padding: 16px 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px;">
+                <div><strong style="color: var(--accent-blue);">{{ response.user.username }}</strong> <span style="color: var(--text-muted); margin: 0 8px;">|</span> <span style="color: var(--text-secondary);">{{ response.question.text|truncate(40) }}</span></div>
+                <div style="text-align: right;"><span style="display: inline-block; padding: 3px 12px; border-radius: 30px; font-size: 12px; font-weight: 600; background: #d4edda; color: #155724;">{{ response.marks_earned }}/{{ response.question.marks }}</span><span style="color: var(--text-muted); font-size: 12px; display: block; margin-top: 3px;">{{ response.submitted_at.strftime('%Y-%m-%d %H:%M') }}</span></div>
+            </div>
+            {% if response.text_response %}<div style="margin-top: 8px; color: var(--text-secondary); font-size: 14px; padding: 8px 12px; border-radius: 10px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">💬 {{ response.text_response }}</div>{% endif %}
+            {% if response.options %}<div style="margin-top: 5px; font-size: 13px; color: var(--text-secondary);"><strong>Selected:</strong> {% for opt in response.options %}<span style="display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 11px;">{{ opt.text }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</div>{% endif %}
+        </div>
+        {% else %}<p style="text-align: center; color: var(--text-muted); padding: 40px;">No responses found.</p>{% endfor %}
+    </div>
+    <div style="margin-top: 15px;"><a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back</a></div>
+</div>
+<script>
+document.getElementById('responseSearch').addEventListener('keyup', function() {
+    const searchTerm = this.value.toLowerCase();
+    document.querySelectorAll('.response-item').forEach(item => {
+        item.style.display = item.textContent.toLowerCase().includes(searchTerm) ? 'block' : 'none';
+    });
+});
+</script>
+
+<!-- ============================================ -->
+<!-- USERS -->
+<!-- ============================================ -->
+{% elif section == 'users' %}
+<div class="admin-section">
+    <div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+        <h4 style="margin-bottom: 15px; color: var(--text-secondary);">👥 All Users</h4>
+        {% for user in users %}
+        <div style="padding: 12px 16px; border-radius: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div><strong style="color: var(--text-secondary);">{{ user.username }}</strong> {% if user.is_admin %}<span style="background: var(--accent-blue); color: white; padding: 2px 12px; border-radius: 20px; font-size: 12px;">Admin</span>{% endif %} <span style="color: var(--text-muted); font-size: 12px; margin-left: 10px;">Joined: {{ user.created_at.strftime('%Y-%m-%d') if user.created_at else 'N/A' }}</span></div>
+            <div style="display: flex; gap: 15px; font-size: 13px; color: var(--text-secondary);"><span>Responses: {{ user.responses|length }}</span><span>Feedback: {% if user.final_feedback %}✅{% else %}❌{% endif %}</span></div>
+        </div>
+        {% else %}<p style="text-align: center; color: var(--text-muted); padding: 20px;">No users found.</p>{% endfor %}
+    </div>
+    <div style="margin-top: 15px;"><a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back</a></div>
+</div>
+
+<!-- ============================================ -->
+<!-- SETTINGS -->
+<!-- ============================================ -->
+{% elif section == 'settings' %}
+<div class="admin-section">
+    <h3 style="color: var(--accent-teal); margin-bottom: 20px;">⚙️ Site Settings</h3>
+    <div style="padding: 20px; border-radius: 20px; background: var(--card-bg); box-shadow: var(--card-shadow);">
+        <form method="post" action="{{ url_for('admin_settings') }}" style="display: flex; flex-direction: column; gap: 20px;">
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Site Title</label><input type="text" name="site_title" value="{{ settings.site_title }}" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;" placeholder="YASH WORLD"></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Site Tagline</label><input type="text" name="site_tagline" value="{{ settings.site_tagline }}" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;" placeholder="Premium Survey Application"></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Welcome Message</label><textarea name="welcome_message" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 80px; font-family: inherit;" placeholder="Welcome message...">{{ settings.welcome_message or '' }}</textarea></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;"><input type="checkbox" name="enable_music" {% if settings.enable_music %}checked{% endif %} style="transform: scale(1.3); accent-color: var(--accent-blue);"> Enable Background Music</label></div>
+            <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;"><input type="checkbox" name="enable_typing" {% if settings.enable_typing %}checked{% endif %} style="transform: scale(1.3); accent-color: var(--accent-blue);"> Enable Typing Animation</label></div>
+            <button type="submit" class="btn btn-secondary">💾 Save Settings</button>
+        </form>
+    </div>
+    <div style="margin-top: 15px;"><a href="{{ url_for('admin_dashboard') }}" class="btn btn-secondary">← Back</a></div>
+</div>
+
+{% endif %}
+</div>
+
+<style>
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group label { font-weight: 600; color: var(--text-secondary); font-size: 14px; }
+.admin-section { animation: fadeIn 0.5s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 768px) {
+    .admin-header h2 { font-size: 24px !important; }
+    .stats-grid { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+    .stat-card { padding: 12px !important; }
+    .quick-actions { flex-direction: column !important; }
+    .quick-actions .btn { width: 100% !important; }
+}
+</style>
+
+{% endblock %}

@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 25px;">
+    <div>
+        <h2 style="color: var(--text-secondary);">📊 All Responses</h2>
+        <p style="color: var(--text-muted); font-size: 14px;">View all replies given by the friend</p>
+    </div>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm">← Back to Dashboard</a>
+</div>
+
+<!-- Statistics -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); text-align: center;">
+        <div style="font-size: 32px; font-weight: 800; color: var(--accent-blue);">{{ total_replies }}</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Total Replies</div>
+    </div>
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); text-align: center;">
+        <div style="font-size: 32px; font-weight: 800; color: var(--accent-green);">{{ unique_questions }}</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Questions Answered</div>
+    </div>
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); text-align: center;">
+        <div style="font-size: 32px; font-weight: 800; color: var(--accent-yellow);">{{ total_questions }}</div>
+        <div style="font-size: 13px; color: var(--text-muted);">Total Questions</div>
+    </div>
+    <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); text-align: center;">
+        <div style="font-size: 32px; font-weight: 800; color: {% if completion_percentage >= 80 %}var(--accent-green){% elif completion_percentage >= 50 %}var(--accent-yellow){% else %}var(--accent-red){% endif %};">
+            {{ completion_percentage }}%
+        </div>
+        <div style="font-size: 13px; color: var(--text-muted);">Completion Rate</div>
+    </div>
+</div>
+
+<!-- Search Bar -->
+<div style="margin-bottom: 20px;">
+    <input type="text" id="searchResponses" placeholder="🔍 Search responses by question or reply..." 
+           style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; font-family: var(--font-family);">
+</div>
+
+<!-- All Responses -->
+{% if all_replies %}
+    <div id="responsesContainer">
+        {% for reply in all_replies %}
+        <div class="response-card" style="padding: 22px; border-radius: 20px; background: var(--bg-primary); box-shadow: var(--card-shadow); margin-bottom: 22px; border-left: 6px solid var(--accent-purple); transition: all 0.3s ease;">
+            
+            <!-- HEADER BADGE -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+                <span style="background: var(--gradient-primary); color: white; padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 800;">
+                    📊 Response #{{ loop.index }}
+                </span>
+                <span style="color: var(--text-muted); font-size: 13px; font-weight: 600;">
+                    🕒 Submitted: {{ reply.created_at.strftime('%d %b %Y, %H:%M') }}
+                </span>
+            </div>
+
+            <!-- 1. QUESTION ASKED BOX -->
+            <div style="padding: 18px 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); margin-bottom: 14px; border-left: 5px solid var(--accent-blue);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                    <span style="font-weight: 800; color: var(--accent-blue); font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
+                        ❓ QUESTION ASKED {% if reply.question %}(#{{ reply.question.id }}){% else %}(#{{ reply.question_id }}){% endif %}
+                    </span>
+                    <span style="color: var(--text-muted); font-size: 12px; font-weight: 600;">
+                        Asked by: {{ reply.question.asker.username if (reply.question and reply.question.asker) else 'Admin' }}
+                    </span>
+                </div>
+                
+                <div style="font-weight: 700; color: var(--text-primary); font-size: 17px; line-height: 1.6; padding: 6px 0;">
+                    {% if reply.question and reply.question.text %}
+                        "{{ reply.question.text }}"
+                    {% else %}
+                        <span style="color: var(--accent-red); font-weight: 600;">[Question #{{ reply.question_id }} text unavailable]</span>
+                    {% endif %}
+                </div>
+                
+                <!-- Question Attachments -->
+                {% if reply.question and (reply.question.image_data or reply.question.video_data or reply.question.audio_data) %}
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding: 10px 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-radius: 12px; align-items: center;">
+                    <span style="color: var(--text-muted); font-size: 12px; font-weight: 700;">📎 Question Attachments:</span>
+                    {% if reply.question.image_data %}
+                    <button class="media-reveal-btn image-btn" onclick="toggleMedia('q_img_{{ reply.id }}', this)" style="padding: 5px 12px; border-radius: 8px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); color: var(--accent-blue);">🖼️ View Question Image</button>
+                    <div id="q_img_{{ reply.id }}" class="media-content" style="display: none; margin-top: 10px; width: 100%;">
+                        <img src="{{ get_media_url(reply.question.image_data, 'image') }}" style="max-width: 100%; max-height: 220px; border-radius: 12px; box-shadow: var(--card-shadow);">
+                    </div>
+                    {% endif %}
+                    {% if reply.question.video_data %}
+                    <button class="media-reveal-btn video-btn" onclick="toggleMedia('q_vid_{{ reply.id }}', this)" style="padding: 5px 12px; border-radius: 8px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); color: var(--accent-red);">🎬 Play Question Video</button>
+                    <div id="q_vid_{{ reply.id }}" class="media-content" style="display: none; margin-top: 10px; width: 100%;">
+                        <video controls playsinline preload="metadata" src="{{ get_media_url(reply.question.video_data, 'video') }}" style="max-width: 100%; max-height: 250px; border-radius: 12px; width: 100%; background: #000;"></video>
+                    </div>
+                    {% endif %}
+                    {% if reply.question.audio_data %}
+                    <button class="media-reveal-btn audio-btn" onclick="toggleMedia('q_aud_{{ reply.id }}', this)" style="padding: 5px 12px; border-radius: 8px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); color: var(--accent-green);">🎵 Play Question Audio</button>
+                    <div id="q_aud_{{ reply.id }}" class="media-content" style="display: none; margin-top: 10px; width: 100%;">
+                        <audio controls style="width: 100%; border-radius: 12px;"><source src="{{ get_media_url(reply.question.audio_data, 'audio') }}"></audio>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- 2. FRIEND REPLIED ANSWER BOX -->
+            <div style="padding: 18px 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-left: 5px solid var(--accent-green);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                    <span style="font-weight: 800; color: var(--accent-green); font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">
+                        💬 Friend Replied Answer (by {{ reply.replier.username if reply.replier else 'Friend' }})
+                    </span>
+                </div>
+                
+                <div style="color: var(--text-primary); font-size: 16px; line-height: 1.6; font-weight: 600; padding: 6px 0;">
+                    "{{ reply.text }}"
+                </div>
+                
+                <!-- Reply Media Attachments -->
+                {% if reply.image_data or reply.video_data or reply.audio_data %}
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding: 10px 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-radius: 12px; align-items: center;">
+                    <span style="color: var(--text-muted); font-size: 12px; font-weight: 700;">📎 Reply Media Attachments:</span>
+                    
+                    {% if reply.image_data %}
+                    <button class="media-reveal-btn image-btn" onclick="toggleMedia('admin_img_{{ reply.id }}', this)" style="padding: 5px 12px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); color: var(--accent-blue);">
+                        🖼️ Show Reply Image
+                    </button>
+                    <div id="admin_img_{{ reply.id }}" class="media-content" style="display: none; margin-top: 10px; width: 100%;">
+                        <img src="{{ get_media_url(reply.image_data, 'image') }}" style="max-width: 100%; max-height: 220px; border-radius: 12px; box-shadow: var(--card-shadow);">
+                    </div>
+                    {% endif %}
+                    
+                    {% if reply.video_data %}
+                    <button class="media-reveal-btn video-btn" onclick="toggleMedia('admin_vid_{{ reply.id }}', this)" style="padding: 5px 12px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); color: var(--accent-red);">
+                        🎬 Play Reply Video
+                    </button>
+                    <div id="admin_vid_{{ reply.id }}" class="media-content" style="display: none; margin-top: 10px; width: 100%;">
+                        <video controls playsinline preload="metadata" src="{{ get_media_url(reply.video_data, 'video') }}" style="max-width: 100%; max-height: 250px; border-radius: 12px; width: 100%; background: #000;"></video>
+                    </div>
+                    {% endif %}
+                    
+                    {% if reply.audio_data %}
+                    <button class="media-reveal-btn audio-btn" onclick="toggleMedia('admin_aud_{{ reply.id }}', this)" style="padding: 5px 12px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; background: var(--bg-primary); box-shadow: 4px 4px 8px var(--shadow-light), -4px -4px 8px var(--shadow-dark); color: var(--accent-green);">
+                        🎵 Play Reply Audio
+                    </button>
+                    <div id="admin_aud_{{ reply.id }}" class="media-content" style="display: none; margin-top: 10px; width: 100%;">
+                        <audio controls style="width: 100%; border-radius: 12px;"><source src="{{ get_media_url(reply.audio_data, 'audio') }}"></audio>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Delete Button -->
+            <div style="margin-top: 12px; display: flex; gap: 10px; justify-content: flex-end;">
+                <button onclick="deleteReply({{ reply.id }})" class="btn btn-danger btn-sm" style="padding: 6px 14px; border-radius: 12px; font-size: 12px; background: var(--accent-red); color: white; border: none; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 5px;">
+                    🗑️ Delete Response
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+<div style="text-align: center; padding: 60px 20px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-radius: 16px;">
+    <div style="font-size: 64px;">📭</div>
+    <h3 style="color: var(--text-secondary); margin-top: 15px;">No Responses Yet</h3>
+    <p style="color: var(--text-muted);">The friend hasn't replied to any questions yet.</p>
+</div>
+{% endif %}
+
+<!-- ============================================ -->
+<!-- STYLES & SCRIPTS -->
+<!-- ============================================ -->
+<style>
+.media-reveal-btn {
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.media-reveal-btn:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 6px 6px 12px var(--shadow-light), -6px -6px 12px var(--shadow-dark);
+}
+.media-reveal-btn .arrow {
+    display: inline-block;
+    transition: transform 0.3s ease;
+    font-size: 9px;
+}
+.media-reveal-btn.active .arrow {
+    transform: rotate(180deg);
+}
+.media-content {
+    animation: mediaReveal 0.3s ease;
+}
+@keyframes mediaReveal {
+    from { opacity: 0; transform: translateY(-10px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.response-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 16px 16px 32px var(--shadow-light), -16px -16px 32px var(--shadow-dark);
+}
+
+@media (max-width: 600px) {
+    .response-card { padding: 15px !important; }
+    .stat-card { padding: 12px !important; }
+}
+</style>
+
+<script>
+// ============================================
+// TOGGLE MEDIA
+// ============================================
+function toggleMedia(mediaId, button) {
+    const content = document.getElementById(mediaId);
+    if (content) {
+        if (content.style.display === 'none' || content.style.display === '') {
+            content.style.display = 'block';
+            if (button) {
+                button.classList.add('active');
+                const textSpan = button.querySelector('.btn-text');
+                if (textSpan) {
+                    if (textSpan.textContent.includes('Show')) {
+                        textSpan.textContent = 'Hide';
+                    } else if (textSpan.textContent.includes('Play')) {
+                        textSpan.textContent = 'Hide';
+                    }
+                }
+            }
+            const video = content.querySelector('video');
+            if (video) video.play();
+        } else {
+            content.style.display = 'none';
+            if (button) {
+                button.classList.remove('active');
+                const textSpan = button.querySelector('.btn-text');
+                if (textSpan) {
+                    const type = button.classList.contains('image-btn') ? 'Image' :
+                                button.classList.contains('video-btn') ? 'Video' : 'Audio';
+                    textSpan.textContent = type === 'Image' ? 'Show Image' : 
+                                          type === 'Video' ? 'Play Video' : 'Play Audio';
+                }
+            }
+            const video = content.querySelector('video');
+            if (video) video.pause();
+        }
+    }
+}
+
+// ============================================
+// SEARCH RESPONSES
+// ============================================
+document.getElementById('searchResponses').addEventListener('keyup', function() {
+    const searchTerm = this.value.toLowerCase();
+    const cards = document.querySelectorAll('.response-card');
+    cards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        card.style.display = text.includes(searchTerm) ? 'block' : 'none';
+    });
+});
+
+// ============================================
+// DELETE REPLY
+// ============================================
+function deleteReply(replyId) {
+    if (confirm('⚠️ Delete this reply? This cannot be undone!')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("delete_reply", reply_id=0) }}'.replace('0', replyId);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 25px;">
+    <h2 style="color: var(--text-secondary);">✏️ Manage Typing Animation Text</h2>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm">← Back</a>
+</div>
+
+<p style="color: var(--text-muted); margin-bottom: 20px; font-size: 14px;">
+    This text will be displayed with typing animation when a friend first logs in.
+    Only one text can be active at a time.
+</p>
+
+<!-- Add New Typing Text -->
+<div style="padding: 22px; border-radius: 20px; background: var(--bg-primary); box-shadow: var(--card-shadow); margin-bottom: 25px; border-left: 5px solid var(--accent-purple);">
+    <h4 style="color: var(--text-secondary); margin-bottom: 15px; font-size: 18px; font-weight: 800;">➕ Add / Edit Typing Text</h4>
+    <form method="post" style="display: flex; flex-direction: column; gap: 15px;">
+        <div>
+            <label style="font-weight: 700; color: var(--text-secondary); display: block; margin-bottom: 8px;">Typing Message Text (supports line breaks)</label>
+            <textarea id="adminTypingInput" name="typing_text" required placeholder="Enter text that will be displayed with typing animation..." 
+                      style="width: 100%; padding: 16px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 120px; font-family: inherit;">{% if active_text %}{{ active_text.text }}{% endif %}</textarea>
+        </div>
+
+        <!-- Live Preview Area -->
+        <div style="padding: 16px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-left: 4px solid var(--accent-blue);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 12px; font-weight: 800; color: var(--accent-blue); text-transform: uppercase;">✨ Live Animation Preview:</span>
+                <button type="button" onclick="testAdminAnimation()" class="btn btn-sm" style="padding: 4px 12px; font-size: 11px; border-radius: 10px; background: var(--gradient-primary); color: white; border: none; font-weight: 700; cursor: pointer;">
+                    ▶️ Test Typing Preview
+                </button>
+            </div>
+            <div style="font-size: 16px; line-height: 1.7; color: var(--text-primary); min-height: 50px; font-weight: 600; white-space: pre-wrap;">
+                <span id="adminPreviewText">Click "Test Typing Preview" to see animation...</span><span id="adminPreviewCursor" class="blinking-cursor" style="display: none; font-weight: 800; color: var(--accent-blue);">▌</span>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 5px;">
+            <button type="submit" class="btn btn-success btn-lg" style="padding: 14px 30px; font-weight: 700; font-size: 15px;">💾 Save & Activate Message</button>
+        </div>
+    </form>
+</div>
+
+<style>
+.blinking-cursor {
+    animation: cursorBlink 0.75s infinite ease-in-out;
+    margin-left: 3px;
+}
+@keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+</style>
+
+<script>
+function testAdminAnimation() {
+    const input = document.getElementById('adminTypingInput');
+    const preview = document.getElementById('adminPreviewText');
+    const cursor = document.getElementById('adminPreviewCursor');
+    if (!input || !preview) return;
+
+    const text = input.value || "Please enter some text in the box above...";
+    let i = 0;
+    let curr = '';
+    preview.textContent = '';
+    if (cursor) cursor.style.display = 'inline-block';
+
+    function step() {
+        if (i < text.length) {
+            curr += text.charAt(i);
+            preview.textContent = curr;
+            i++;
+            let delay = 30;
+            const c = text.charAt(i - 1);
+            if (c === '.' || c === '!' || c === '?') delay = 350;
+            else if (c === ',') delay = 150;
+            setTimeout(step, delay);
+        } else {
+            if (cursor) cursor.style.display = 'none';
+        }
+    }
+    step();
+}
+</script>
+
+<!-- All Typing Texts -->
+<div style="padding: 20px; border-radius: 18px; background: var(--bg-primary); box-shadow: var(--card-shadow);">
+    <h4 style="color: var(--text-secondary); margin-bottom: 15px;">📋 All Typing Texts</h4>
+    
+    {% if typing_texts %}
+        {% for text in typing_texts %}
+        <div style="padding: 14px 18px; border-radius: 14px; background: var(--bg-primary); box-shadow: var(--inset-shadow); margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div style="flex: 1;">
+                <div style="color: var(--text-secondary); font-size: 15px; line-height: 1.6; padding: 8px 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-radius: 10px; white-space: pre-wrap;">
+                    {{ text.text|truncate(150) }}
+                </div>
+                <div style="margin-top: 5px; font-size: 12px; color: var(--text-muted);">
+                    Created: {{ text.created_at.strftime('%Y-%m-%d %H:%M') }}
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                {% if text.is_active %}
+                <span style="background: var(--accent-green); color: white; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;">✅ Active</span>
+                {% else %}
+                <a href="{{ url_for('admin_activate_typing_text', text_id=text.id) }}" class="btn btn-sm btn-primary" style="padding: 4px 12px; font-size: 11px; text-decoration: none;">▶️ Activate</a>
+                {% endif %}
+                <form method="post" action="{{ url_for('admin_delete_typing_text', text_id=text.id) }}" style="display: inline;" onsubmit="return confirm('Delete this typing text?');">
+                    <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 11px;">🗑️</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p style="color: var(--text-muted); text-align: center; padding: 20px;">No typing texts created yet.</p>
+    {% endif %}
+</div>
+
+<div style="margin-top: 20px;">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← Back to Dashboard</a>
+</div>
+
+{% endblock %}
