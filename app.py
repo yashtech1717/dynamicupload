@@ -110,6 +110,26 @@ init_firebase()
 # FIRESTORE DATA WRAPPER & HELPER CLASSES
 # ============================================================
 
+class SafeDateTime:
+    def __init__(self, val):
+        self.val = val
+        self.dt = None
+        if isinstance(val, datetime):
+            self.dt = val
+        elif isinstance(val, str):
+            try:
+                self.dt = datetime.fromisoformat(val.replace('Z', '+00:00'))
+            except Exception:
+                pass
+
+    def strftime(self, fmt='%d %b %Y, %H:%M'):
+        if self.dt:
+            return self.dt.strftime(fmt)
+        return str(self.val)[:16] if self.val else 'N/A'
+
+    def __str__(self):
+        return self.strftime()
+
 class FirestoreDoc:
     def __init__(self, data_dict):
         if not data_dict:
@@ -118,11 +138,8 @@ class FirestoreDoc:
         for k, v in self._data.items():
             if isinstance(v, dict):
                 setattr(self, k, FirestoreDoc(v))
-            elif k in ('created_at', 'updated_at', 'last_login') and isinstance(v, str):
-                try:
-                    setattr(self, k, datetime.fromisoformat(v))
-                except Exception:
-                    setattr(self, k, v)
+            elif k in ('created_at', 'updated_at', 'last_login', 'submitted_at'):
+                setattr(self, k, SafeDateTime(v))
             else:
                 setattr(self, k, v)
 
@@ -130,7 +147,8 @@ class FirestoreDoc:
         return getattr(self, key, None)
 
     def get(self, key, default=None):
-        return getattr(self, key, default)
+        val = getattr(self, key, default)
+        return val if val is not None else default
 
     def to_dict(self):
         return self._data
@@ -143,24 +161,8 @@ class FirestoreUser(UserMixin):
         self.password_hash = self._data.get('password_hash', '')
         self.is_admin = bool(self._data.get('is_admin', False))
         self.is_friend = bool(self._data.get('is_friend', False))
-        
-        c_at = self._data.get('created_at')
-        if isinstance(c_at, str):
-            try:
-                self.created_at = datetime.fromisoformat(c_at)
-            except Exception:
-                self.created_at = c_at
-        else:
-            self.created_at = c_at
-
-        l_in = self._data.get('last_login')
-        if isinstance(l_in, str):
-            try:
-                self.last_login = datetime.fromisoformat(l_in)
-            except Exception:
-                self.last_login = l_in
-        else:
-            self.last_login = l_in
+        self.created_at = SafeDateTime(self._data.get('created_at'))
+        self.last_login = SafeDateTime(self._data.get('last_login'))
 
     def check_password(self, password):
         if not self.password_hash:
@@ -280,26 +282,49 @@ def get_next_id(collection_name):
     except Exception:
         return int(datetime.utcnow().timestamp())
 
+_CACHE_STORE = {}
+_CACHE_TIME = {}
+
+def get_cached(key, fetch_fn, ttl=10):
+    now = datetime.utcnow()
+    if key in _CACHE_STORE and key in _CACHE_TIME:
+        if (now - _CACHE_TIME[key]).total_seconds() < ttl:
+            return _CACHE_STORE[key]
+    val = fetch_fn()
+    _CACHE_STORE[key] = val
+    _CACHE_TIME[key] = now
+    return val
+
+def invalidate_cache(key=None):
+    if key:
+        _CACHE_STORE.pop(key, None)
+        _CACHE_TIME.pop(key, None)
+    else:
+        _CACHE_STORE.clear()
+        _CACHE_TIME.clear()
+
 def get_all_questions():
-    if not db_firestore:
-        return []
-    try:
-        users_map = {str(u.id): u for u in get_all_users()}
-        docs = db_firestore.collection('questions').get()
-        questions = []
-        for doc in docs:
-            d = doc.to_dict()
-            u_id = str(d.get('user_id'))
-            asker = users_map.get(u_id)
-            if asker:
-                d['asker'] = {'username': asker.username, 'id': asker.id}
-            questions.append(FirestoreDoc(d))
-        
-        questions.sort(key=lambda q: q.created_at if isinstance(q.created_at, datetime) else datetime.min, reverse=True)
-        return questions
-    except Exception as e:
-        logger.error(f"Error fetching all questions: {e}")
-        return []
+    def _fetch():
+        if not db_firestore:
+            return []
+        try:
+            users_map = {str(u.id): u for u in get_all_users()}
+            docs = db_firestore.collection('questions').get()
+            questions = []
+            for doc in docs:
+                d = doc.to_dict()
+                u_id = str(d.get('user_id'))
+                asker = users_map.get(u_id)
+                if asker:
+                    d['asker'] = {'username': asker.username, 'id': asker.id}
+                questions.append(FirestoreDoc(d))
+            
+            questions.sort(key=lambda q: q.created_at.dt if getattr(q, 'created_at', None) and getattr(q.created_at, 'dt', None) else datetime.min, reverse=True)
+            return questions
+        except Exception as e:
+            logger.error(f"Error fetching all questions: {e}")
+            return []
+    return get_cached('all_questions', _fetch, ttl=10)
 
 def get_question_by_id(question_id):
     if not db_firestore or not question_id:
@@ -330,6 +355,7 @@ def save_question(q_dict):
         
         clean_dict = {k: v for k, v in q_dict.items() if k not in ('asker', 'replies')}
         db_firestore.collection('questions').document(q_id).set(clean_dict, merge=True)
+        invalidate_cache('all_questions')
         logger.info(f"🔥 Question {q_id} saved to Firestore")
         return get_question_by_id(q_id)
     except Exception as e:
@@ -343,7 +369,7 @@ def delete_question_doc(question_id):
         q = get_question_by_id(question_id)
         if q:
             for m_attr in ('image_data', 'video_data', 'audio_data', 'answer_image_data', 'answer_video_data', 'answer_audio_data'):
-                url = getattr(q, m_attr, None)
+                url = q.get(m_attr)
                 if url:
                     delete_file_from_firebase(url)
             
@@ -352,6 +378,7 @@ def delete_question_doc(question_id):
                 delete_reply_doc(r.id)
 
             db_firestore.collection('questions').document(str(question_id)).delete()
+            invalidate_cache('all_questions')
             logger.info(f"🔥 Question {question_id} deleted from Firestore")
             return True
     except Exception as e:
@@ -782,11 +809,19 @@ def upload_file_to_firebase(file, media_type='video'):
             last_error = e
             logger.warning(f"Failed upload attempt to bucket '{b_name}': {e}")
 
-    err_msg = str(last_error)
-    if '404' in err_msg or 'does not exist' in err_msg:
-        raise RuntimeError("Firebase Storage bucket is not enabled yet in your Firebase Console. Please go to Firebase Console -> Storage -> Click 'Get Started'.")
-    else:
-        raise RuntimeError(f"Firebase Storage upload error: {err_msg}")
+    # Seamless Fallback to Data URI Base64 if Cloud Storage bucket is unprovisioned
+    try:
+        content_type = file.content_type
+        if not content_type:
+            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+            content_type = f"{media_type}/{ext}" if ext else 'application/octet-stream'
+        b64_str = base64.b64encode(file_bytes).decode('utf-8')
+        data_uri = f"data:{content_type};base64,{b64_str}"
+        logger.info(f"✅ Upload succeeded via Data URI Base64 fallback for {filename}")
+        return data_uri, filename
+    except Exception as fallback_err:
+        logger.error(f"Base64 fallback error: {fallback_err}")
+        raise RuntimeError(f"Upload error: {last_error}")
 
 def delete_file_from_firebase(url_or_path):
     if not firebase_initialized or not firebase_bucket or not url_or_path:
