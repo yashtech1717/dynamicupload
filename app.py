@@ -174,6 +174,11 @@ class FirestoreUser(UserMixin):
 # FIRESTORE DATA ACCESS LAYER
 # ============================================================
 
+_DEFAULT_ADMIN_USER = os.environ.get('ADMIN_USERNAME', 'yash')
+_DEFAULT_FRIEND_USER = os.environ.get('FRIEND_USERNAME', 'Glory')
+_DEFAULT_ADMIN_HASH = generate_password_hash(os.environ.get('ADMIN_PASSWORD', 'admin123'))
+_DEFAULT_FRIEND_HASH = generate_password_hash(os.environ.get('FRIEND_PASSWORD', 'lory'))
+
 def get_user_by_id(user_id):
     if not user_id:
         return None
@@ -190,21 +195,16 @@ def get_user_by_id(user_id):
         except Exception as e:
             logger.error(f"Error fetching user by id {user_id}: {e}")
     
-    admin_u = os.environ.get('ADMIN_USERNAME', 'yash')
-    friend_u = os.environ.get('FRIEND_USERNAME', 'Glory')
-    admin_p = os.environ.get('ADMIN_PASSWORD', 'admin123')
-    friend_p = os.environ.get('FRIEND_PASSWORD', 'lory')
-
-    if str(user_id) in ('1', admin_u):
+    if str(user_id) in ('1', _DEFAULT_ADMIN_USER):
         return FirestoreUser({
-            'id': 1, 'username': admin_u,
-            'password_hash': generate_password_hash(admin_p),
+            'id': 1, 'username': _DEFAULT_ADMIN_USER,
+            'password_hash': _DEFAULT_ADMIN_HASH,
             'is_admin': True, 'is_friend': True
         })
-    elif str(user_id) in ('2', friend_u):
+    elif str(user_id) in ('2', _DEFAULT_FRIEND_USER):
         return FirestoreUser({
-            'id': 2, 'username': friend_u,
-            'password_hash': generate_password_hash(friend_p),
+            'id': 2, 'username': _DEFAULT_FRIEND_USER,
+            'password_hash': _DEFAULT_FRIEND_HASH,
             'is_admin': False, 'is_friend': True
         })
 
@@ -221,22 +221,17 @@ def get_user_by_username(username):
         except Exception as e:
             logger.error(f"Error fetching user by username {username}: {e}")
 
-    admin_u = os.environ.get('ADMIN_USERNAME', 'yash')
-    friend_u = os.environ.get('FRIEND_USERNAME', 'Glory')
-    admin_p = os.environ.get('ADMIN_PASSWORD', 'admin123')
-    friend_p = os.environ.get('FRIEND_PASSWORD', 'lory')
-
     clean_u = username.strip().lower()
-    if clean_u == admin_u.lower():
+    if clean_u == _DEFAULT_ADMIN_USER.lower():
         return FirestoreUser({
-            'id': 1, 'username': admin_u,
-            'password_hash': generate_password_hash(admin_p),
+            'id': 1, 'username': _DEFAULT_ADMIN_USER,
+            'password_hash': _DEFAULT_ADMIN_HASH,
             'is_admin': True, 'is_friend': True
         })
-    elif clean_u == friend_u.lower():
+    elif clean_u == _DEFAULT_FRIEND_USER.lower():
         return FirestoreUser({
-            'id': 2, 'username': friend_u,
-            'password_hash': generate_password_hash(friend_p),
+            'id': 2, 'username': _DEFAULT_FRIEND_USER,
+            'password_hash': _DEFAULT_FRIEND_HASH,
             'is_admin': False, 'is_friend': True
         })
 
@@ -244,13 +239,9 @@ def get_user_by_username(username):
 
 def get_all_users():
     if not db_firestore:
-        admin_u = os.environ.get('ADMIN_USERNAME', 'yash')
-        friend_u = os.environ.get('FRIEND_USERNAME', 'Glory')
-        admin_p = os.environ.get('ADMIN_PASSWORD', 'admin123')
-        friend_p = os.environ.get('FRIEND_PASSWORD', 'lory')
         return [
-            FirestoreUser({'id': 1, 'username': admin_u, 'password_hash': generate_password_hash(admin_p), 'is_admin': True, 'is_friend': True}),
-            FirestoreUser({'id': 2, 'username': friend_u, 'password_hash': generate_password_hash(friend_p), 'is_admin': False, 'is_friend': True})
+            FirestoreUser({'id': 1, 'username': _DEFAULT_ADMIN_USER, 'password_hash': _DEFAULT_ADMIN_HASH, 'is_admin': True, 'is_friend': True}),
+            FirestoreUser({'id': 2, 'username': _DEFAULT_FRIEND_USER, 'password_hash': _DEFAULT_FRIEND_HASH, 'is_admin': False, 'is_friend': True})
         ]
     try:
         docs = db_firestore.collection('users').get()
@@ -304,7 +295,7 @@ def get_all_questions():
                 d['asker'] = {'username': asker.username, 'id': asker.id}
             questions.append(FirestoreDoc(d))
         
-        questions.sort(key=lambda q: q.created_at if isinstance(q.created_at, datetime) else datetime.min)
+        questions.sort(key=lambda q: q.created_at if isinstance(q.created_at, datetime) else datetime.min, reverse=True)
         return questions
     except Exception as e:
         logger.error(f"Error fetching all questions: {e}")
