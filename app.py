@@ -305,20 +305,26 @@ def save_user(user_dict):
 
 def get_next_id(collection_name):
     if not db_firestore:
-        return 1
+        raise RuntimeError(f"Firestore is not initialized. Cannot generate atomic ID for {collection_name}.")
     try:
-        docs = db_firestore.collection(collection_name).get()
-        max_id = 0
-        for doc in docs:
-            data = doc.to_dict()
-            cid = data.get('id')
-            if isinstance(cid, int) and cid > max_id:
-                max_id = cid
-            elif isinstance(cid, str) and cid.isdigit() and int(cid) > max_id:
-                max_id = int(cid)
-        return max_id + 1
-    except Exception:
-        return int(datetime.utcnow().timestamp())
+        from firebase_admin import firestore
+        @firestore.transactional
+        def _txn_counter(transaction, counter_ref):
+            snap = counter_ref.get(transaction=transaction)
+            if snap.exists:
+                cur_val = snap.get('last_id') or 0
+                new_val = cur_val + 1
+            else:
+                new_val = 1
+            transaction.set(counter_ref, {'last_id': new_val}, merge=True)
+            return new_val
+
+        transaction = db_firestore.transaction()
+        counter_ref = db_firestore.collection('counters').document(str(collection_name))
+        return _txn_counter(transaction, counter_ref)
+    except Exception as e:
+        logger.error(f"Error generating atomic counter for {collection_name}: {e}")
+        return int(datetime.utcnow().timestamp() * 1000)
 
 _CACHE_STORE = {}
 _CACHE_TIME = {}
@@ -771,104 +777,86 @@ def save_site_settings(title, tagline, welcome):
         return None
 
 # ============================================================
+# ============================================================
 # PERMANENT FIREBASE STORAGE UPLOAD & DELETE HELPERS
 # ============================================================
 
-def upload_file_to_firebase(file, media_type='video'):
+def upload_file_to_firebase(file, media_type='image'):
     if not file or not file.filename:
         return None, None
+
+    if not firebase_initialized or not firebase_bucket:
+        raise RuntimeError("Firebase Storage is not initialized. Please verify FIREBASE_SERVICE_ACCOUNT and FIREBASE_STORAGE_BUCKET environment variables.")
 
     filename = secure_filename(file.filename)
     if not filename:
         filename = f"{media_type}_{uuid.uuid4().hex[:6]}"
 
-    if not firebase_initialized:
-        raise RuntimeError("Firebase Storage is not initialized. Please verify FIREBASE_SERVICE_ACCOUNT environment variable.")
-
-    from firebase_admin import storage
-
-    bucket_candidates = []
-    
-    # Auto-discover actual buckets in the Google Cloud Project
-    if firebase_cred_dict and isinstance(firebase_cred_dict, dict):
-        try:
-            from google.cloud import storage as gcs
-            gcs_client = gcs.Client.from_service_account_info(firebase_cred_dict)
-            discovered = [b.name for b in gcs_client.list_buckets()]
-            if discovered:
-                logger.info(f"🔍 Auto-discovered existing Storage buckets: {discovered}")
-                bucket_candidates.extend(discovered)
-        except Exception as ge:
-            logger.warning(f"Note listing buckets via GCS client: {ge}")
-
-    env_bucket = os.environ.get('FIREBASE_STORAGE_BUCKET', '').strip()
-    if env_bucket and env_bucket not in bucket_candidates:
-        bucket_candidates.append(env_bucket)
-
-    project_id = 'happybirthday-a287a'
-    if firebase_bucket and hasattr(firebase_bucket, 'name') and firebase_bucket.name:
-        if firebase_bucket.name not in bucket_candidates:
-            bucket_candidates.append(firebase_bucket.name)
-
-    bucket_candidates.extend([
-        f"{project_id}.firebasestorage.app",
-        f"{project_id}.appspot.com",
-        project_id
-    ])
-
-    seen = set()
-    unique_buckets = []
-    for b in bucket_candidates:
-        if b and b not in seen:
-            seen.add(b)
-            unique_buckets.append(b)
-
     file.seek(0)
     file_bytes = file.read()
+    if not file_bytes:
+        raise RuntimeError(f"Uploaded file '{filename}' payload is empty (0 bytes).")
 
-    last_error = None
-    for b_name in unique_buckets:
-        try:
-            target_bucket = storage.bucket(b_name)
-            unique_name = f"{media_type}s/{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{filename}"
-            blob = target_bucket.blob(unique_name)
+    unique_name = f"{media_type}s/{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{filename}"
 
-            content_type = file.content_type
-            if not content_type:
-                ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-                content_type = f"{media_type}/{ext}" if ext else 'application/octet-stream'
-
-            media_token = str(uuid.uuid4())
-            blob.metadata = {'firebaseStorageDownloadTokens': media_token}
-
-            blob.upload_from_string(file_bytes, content_type=content_type)
-
-            try:
-                blob.make_public()
-                url = blob.public_url
-            except Exception:
-                encoded_name = quote(blob.name, safe='')
-                url = f"https://firebasestorage.googleapis.com/v0/b/{target_bucket.name}/o/{encoded_name}?alt=media&token={media_token}"
-
-            logger.info(f"✅ File uploaded successfully to Firebase Storage bucket '{b_name}': {url}")
-            return url, filename
-        except Exception as e:
-            last_error = e
-            logger.warning(f"Failed upload attempt to bucket '{b_name}': {e}")
-
-    # Seamless Fallback to Data URI Base64 if Cloud Storage bucket is unprovisioned
     try:
+        blob = firebase_bucket.blob(unique_name)
         content_type = file.content_type
         if not content_type:
             ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
             content_type = f"{media_type}/{ext}" if ext else 'application/octet-stream'
-        b64_str = base64.b64encode(file_bytes).decode('utf-8')
-        data_uri = f"data:{content_type};base64,{b64_str}"
-        logger.info(f"✅ Upload succeeded via Data URI Base64 fallback for {filename}")
-        return data_uri, filename
-    except Exception as fallback_err:
-        logger.error(f"Base64 fallback error: {fallback_err}")
-        raise RuntimeError(f"Upload error: {last_error}")
+
+        media_token = str(uuid.uuid4())
+        blob.metadata = {'firebaseStorageDownloadTokens': media_token}
+
+        # 1. Synchronous Upload to Firebase Storage
+        blob.upload_from_string(file_bytes, content_type=content_type)
+
+        # 2. Verify Object Exists in Firebase Storage
+        if not blob.exists():
+            raise RuntimeError(f"Firebase Storage verification failed: Blob '{unique_name}' does not exist after upload.")
+
+        # 3. Obtain Permanent Download Reference URL
+        try:
+            blob.make_public()
+            url = blob.public_url
+        except Exception:
+            encoded_name = quote(blob.name, safe='')
+            url = f"https://firebasestorage.googleapis.com/v0/b/{firebase_bucket.name}/o/{encoded_name}?alt=media&token={media_token}"
+
+        logger.info(f"✅ Firebase Storage upload verified successfully: {url}")
+        return url, filename
+    except Exception as e:
+        logger.error(f"❌ Firebase Storage upload failed for {filename}: {e}")
+        raise RuntimeError(f"Firebase Storage upload failed: {str(e)}")
+
+def process_media_uploads(request_files, media_specs):
+    """
+    Synchronously process multiple file uploads into Firebase Storage.
+    media_specs: list of tuples: (field_name, media_type, target_url_key, target_filename_key)
+    If ANY upload fails: immediately deletes all already uploaded files in this batch (preventing orphaned files) and raises RuntimeError.
+    """
+    uploaded_records = {}
+    uploaded_urls_to_cleanup = []
+
+    try:
+        for field_name, media_type, url_key, name_key in media_specs:
+            if field_name in request_files and request_files[field_name] and request_files[field_name].filename:
+                file = request_files[field_name]
+                url, fname = upload_file_to_firebase(file, media_type)
+                if url:
+                    uploaded_urls_to_cleanup.append(url)
+                    uploaded_records[url_key] = url
+                    uploaded_records[name_key] = fname
+        return uploaded_records
+    except Exception as e:
+        logger.error(f"⚠️ Rolling back batch Firebase Storage uploads due to error: {e}")
+        for url in uploaded_urls_to_cleanup:
+            try:
+                delete_file_from_firebase(url)
+            except Exception as cleanup_err:
+                logger.error(f"Error cleaning up orphaned file {url}: {cleanup_err}")
+        raise e
 
 def delete_file_from_firebase(url_or_path):
     if not firebase_initialized or not firebase_bucket or not url_or_path:
@@ -879,9 +867,10 @@ def delete_file_from_firebase(url_or_path):
             if len(parts) > 1:
                 blob_name = unquote(parts[1].split('?')[0])
                 blob = firebase_bucket.blob(blob_name)
-                blob.delete()
-                logger.info(f"🗑️ Deleted blob from Firebase Storage: {blob_name}")
-                return True
+                if blob.exists():
+                    blob.delete()
+                    logger.info(f"🗑️ Deleted blob from Firebase Storage: {blob_name}")
+                    return True
     except Exception as e:
         logger.warning(f"Error deleting file from Firebase Storage: {e}")
     return False
@@ -910,24 +899,14 @@ def admin_required(f):
 def get_media_url(data, media_type='image'):
     if not data:
         return ''
-    data = data.strip()
-
+    data = str(data).strip()
     if data.startswith('http://') or data.startswith('https://') or data.startswith('//'):
         if data.startswith('http://'):
             data = 'https://' + data[7:]
         elif data.startswith('//'):
             data = 'https:' + data
         return data
-
-    if data.startswith('data:'):
-        return data
-
-    if media_type == 'video':
-        return f"data:video/mp4;base64,{data}"
-    elif media_type == 'audio':
-        return f"data:audio/mpeg;base64,{data}"
-    else:
-        return f"data:image/jpeg;base64,{data}"
+    return ''
 
 @app.context_processor
 def utility_processor():
@@ -1186,53 +1165,31 @@ def ask_question():
             'is_answered': False
         }
         
-        upload_warnings = []
+        media_specs = [
+            ('image', 'image', 'image_data', 'image_filename'),
+            ('video', 'video', 'video_data', 'video_filename'),
+            ('audio', 'audio', 'audio_data', 'audio_filename'),
+            ('answer_image', 'image', 'answer_image_data', 'answer_image_filename'),
+            ('answer_video', 'video', 'answer_video_data', 'answer_video_filename'),
+            ('answer_audio', 'audio', 'answer_audio_data', 'answer_audio_filename'),
+        ]
         
-        if 'image' in request.files and request.files['image'].filename:
-            file = request.files['image']
-            if is_allowed_image(file.filename):
-                try:
-                    url, fname = upload_file_to_firebase(file, 'image')
-                    if url:
-                        q_data['image_data'] = url
-                        q_data['image_filename'] = fname
-                except Exception as e:
-                    logger.warning(f"Image upload warning: {e}")
-                    upload_warnings.append("Image upload skipped (Activate Storage in Firebase Console -> Storage).")
+        try:
+            uploaded_media = process_media_uploads(request.files, media_specs)
+            q_data.update(uploaded_media)
+        except Exception as e:
+            flash(f"Firebase Storage upload failed: {str(e)}", 'danger')
+            return redirect(url_for('ask_question'))
         
         image_url = request.form.get('image_url', '').strip()
         if image_url and not q_data.get('image_data'):
             q_data['image_data'] = get_media_url(image_url, 'image')
             q_data['image_filename'] = request.form.get('image_filename', 'external_image')
         
-        if 'video' in request.files and request.files['video'].filename:
-            file = request.files['video']
-            if is_allowed_video(file.filename):
-                try:
-                    url, fname = upload_file_to_firebase(file, 'video')
-                    if url:
-                        q_data['video_data'] = url
-                        q_data['video_filename'] = fname
-                except Exception as e:
-                    logger.warning(f"Video upload warning: {e}")
-                    upload_warnings.append("Video upload skipped (Activate Storage in Firebase Console -> Storage).")
-        
         video_url = request.form.get('video_url', '').strip()
         if video_url and not q_data.get('video_data'):
             q_data['video_data'] = get_media_url(video_url, 'video')
             q_data['video_filename'] = request.form.get('video_filename', 'external_video')
-        
-        if 'audio' in request.files and request.files['audio'].filename:
-            file = request.files['audio']
-            if is_allowed_audio(file.filename):
-                try:
-                    url, fname = upload_file_to_firebase(file, 'audio')
-                    if url:
-                        q_data['audio_data'] = url
-                        q_data['audio_filename'] = fname
-                except Exception as e:
-                    logger.warning(f"Audio upload warning: {e}")
-                    upload_warnings.append("Audio upload skipped (Activate Storage in Firebase Console -> Storage).")
         
         audio_url = request.form.get('audio_url', '').strip()
         if audio_url and not q_data.get('audio_data'):
@@ -1245,67 +1202,38 @@ def ask_question():
             q_data['has_answer'] = True
             q_data['is_answered'] = True
             
-            if 'answer_image' in request.files and request.files['answer_image'].filename:
-                file = request.files['answer_image']
-                if is_allowed_image(file.filename):
-                    try:
-                        url, fname = upload_file_to_firebase(file, 'image')
-                        if url:
-                            q_data['answer_image_data'] = url
-                            q_data['answer_image_filename'] = fname
-                    except Exception as e:
-                        logger.warning(f"Answer image upload warning: {e}")
-            
             answer_image_url = request.form.get('answer_image_url', '').strip()
             if answer_image_url and not q_data.get('answer_image_data'):
                 q_data['answer_image_data'] = get_media_url(answer_image_url, 'image')
                 q_data['answer_image_filename'] = request.form.get('answer_image_filename', 'external_answer_image')
-            
-            if 'answer_video' in request.files and request.files['answer_video'].filename:
-                file = request.files['answer_video']
-                if is_allowed_video(file.filename):
-                    try:
-                        url, fname = upload_file_to_firebase(file, 'video')
-                        if url:
-                            q_data['answer_video_data'] = url
-                            q_data['answer_video_filename'] = fname
-                    except Exception as e:
-                        logger.warning(f"Answer video upload warning: {e}")
             
             answer_video_url = request.form.get('answer_video_url', '').strip()
             if answer_video_url and not q_data.get('answer_video_data'):
                 q_data['answer_video_data'] = get_media_url(answer_video_url, 'video')
                 q_data['answer_video_filename'] = request.form.get('answer_video_filename', 'external_answer_video')
             
-            if 'answer_audio' in request.files and request.files['answer_audio'].filename:
-                file = request.files['answer_audio']
-                if is_allowed_audio(file.filename):
-                    try:
-                        url, fname = upload_file_to_firebase(file, 'audio')
-                        if url:
-                            q_data['answer_audio_data'] = url
-                            q_data['answer_audio_filename'] = fname
-                    except Exception as e:
-                        logger.warning(f"Answer audio upload warning: {e}")
-            
             answer_audio_url = request.form.get('answer_audio_url', '').strip()
             if answer_audio_url and not q_data.get('answer_audio_data'):
                 q_data['answer_audio_data'] = get_media_url(answer_audio_url, 'audio')
                 q_data['answer_audio_filename'] = request.form.get('answer_audio_filename', 'external_answer_audio')
         
-        save_question(q_data)
+        try:
+            saved_doc = save_question(q_data)
+            if not saved_doc:
+                raise RuntimeError("Firestore question document write failed.")
+        except Exception as fe:
+            for u_key in ('image_data', 'video_data', 'audio_data', 'answer_image_data', 'answer_video_data', 'answer_audio_data'):
+                if q_data.get(u_key):
+                    delete_file_from_firebase(q_data[u_key])
+            flash(f"Firestore save failed: {str(fe)}", 'danger')
+            return redirect(url_for('ask_question'))
         
         all_q = get_all_questions()
         if all_q:
             session['current_question_index'] = max(0, len(all_q) - 1)
             session.modified = True
         
-        msg = 'Question asked successfully!' + (' Answer added!' if answer_text else '')
-        if upload_warnings:
-            flash(f"{msg} ({' '.join(upload_warnings)})", 'warning')
-        else:
-            flash(msg, 'success')
-            
+        flash('Question asked successfully!', 'success')
         return redirect(url_for('dashboard'))
     
     return render_template('ask.html')
@@ -1335,68 +1263,47 @@ def reply_question(question_id):
             'text': text
         }
         
-        upload_warnings = []
+        media_specs = [
+            ('image', 'image', 'image_data', 'image_filename'),
+            ('video', 'video', 'video_data', 'video_filename'),
+            ('audio', 'audio', 'audio_data', 'audio_filename'),
+        ]
         
-        if 'image' in request.files and request.files['image'].filename:
-            file = request.files['image']
-            if is_allowed_image(file.filename):
-                try:
-                    url, fname = upload_file_to_firebase(file, 'image')
-                    if url:
-                        r_data['image_data'] = url
-                        r_data['image_filename'] = fname
-                except Exception as e:
-                    logger.warning(f"Reply image upload warning: {e}")
-                    upload_warnings.append("Image upload skipped.")
+        try:
+            uploaded_media = process_media_uploads(request.files, media_specs)
+            r_data.update(uploaded_media)
+        except Exception as e:
+            flash(f"Firebase Storage upload failed: {str(e)}", 'danger')
+            return redirect(url_for('reply_question', question_id=question_id))
         
         image_url = request.form.get('image_url', '').strip()
         if image_url and not r_data.get('image_data'):
             r_data['image_data'] = get_media_url(image_url, 'image')
             r_data['image_filename'] = request.form.get('image_filename', 'external_image')
         
-        if 'video' in request.files and request.files['video'].filename:
-            file = request.files['video']
-            if is_allowed_video(file.filename):
-                try:
-                    url, fname = upload_file_to_firebase(file, 'video')
-                    if url:
-                        r_data['video_data'] = url
-                        r_data['video_filename'] = fname
-                except Exception as e:
-                    logger.warning(f"Reply video upload warning: {e}")
-                    upload_warnings.append("Video upload skipped.")
-        
         video_url = request.form.get('video_url', '').strip()
         if video_url and not r_data.get('video_data'):
             r_data['video_data'] = get_media_url(video_url, 'video')
             r_data['video_filename'] = request.form.get('video_filename', 'external_video')
-        
-        if 'audio' in request.files and request.files['audio'].filename:
-            file = request.files['audio']
-            if is_allowed_audio(file.filename):
-                try:
-                    url, fname = upload_file_to_firebase(file, 'audio')
-                    if url:
-                        r_data['audio_data'] = url
-                        r_data['audio_filename'] = fname
-                except Exception as e:
-                    logger.warning(f"Reply audio upload warning: {e}")
-                    upload_warnings.append("Audio upload skipped.")
         
         audio_url = request.form.get('audio_url', '').strip()
         if audio_url and not r_data.get('audio_data'):
             r_data['audio_data'] = get_media_url(audio_url, 'audio')
             r_data['audio_filename'] = request.form.get('audio_filename', 'external_audio')
         
-        save_reply(r_data)
-        save_question({'id': int(question_id), 'is_answered': True})
+        try:
+            saved_reply = save_reply(r_data)
+            if not saved_reply:
+                raise RuntimeError("Firestore reply document write failed.")
+            save_question({'id': int(question_id), 'is_answered': True})
+        except Exception as fe:
+            for u_key in ('image_data', 'video_data', 'audio_data'):
+                if r_data.get(u_key):
+                    delete_file_from_firebase(r_data[u_key])
+            flash(f"Firestore reply save failed: {str(fe)}", 'danger')
+            return redirect(url_for('reply_question', question_id=question_id))
         
-        msg = 'Reply sent successfully! Your response has been sent to the Admin Dashboard.'
-        if upload_warnings:
-            flash(f"{msg} ({' '.join(upload_warnings)})", 'warning')
-        else:
-            flash(msg, 'success')
-            
+        flash('Reply sent successfully! Your response has been sent to the Admin Dashboard.', 'success')
         return redirect(url_for('dashboard'))
     
     return render_template('reply.html', question=question)
@@ -1444,29 +1351,21 @@ def edit_question(question_id):
             q_dict['has_answer'] = True
             q_dict['is_answered'] = True
         
-        if 'image' in request.files and request.files['image'].filename:
-            file = request.files['image']
-            if is_allowed_image(file.filename):
-                url, fname = upload_file_to_firebase(file, 'image')
-                if url:
-                    q_dict['image_data'] = url
-                    q_dict['image_filename'] = fname
-                
-        if 'video' in request.files and request.files['video'].filename:
-            file = request.files['video']
-            if is_allowed_video(file.filename):
-                url, fname = upload_file_to_firebase(file, 'video')
-                if url:
-                    q_dict['video_data'] = url
-                    q_dict['video_filename'] = fname
-                
-        if 'audio' in request.files and request.files['audio'].filename:
-            file = request.files['audio']
-            if is_allowed_audio(file.filename):
-                url, fname = upload_file_to_firebase(file, 'audio')
-                if url:
-                    q_dict['audio_data'] = url
-                    q_dict['audio_filename'] = fname
+        media_specs = [
+            ('image', 'image', 'image_data', 'image_filename'),
+            ('video', 'video', 'video_data', 'video_filename'),
+            ('audio', 'audio', 'audio_data', 'audio_filename'),
+        ]
+        
+        try:
+            uploaded_media = process_media_uploads(request.files, media_specs)
+            for k, v in uploaded_media.items():
+                if k.endswith('_data') and q_dict.get(k):
+                    delete_file_from_firebase(q_dict.get(k))
+            q_dict.update(uploaded_media)
+        except Exception as e:
+            flash(f"Firebase Storage upload failed: {str(e)}", 'danger')
+            return redirect(url_for('edit_question', question_id=question_id))
 
         image_url = request.form.get('image_url', '').strip()
         if image_url:
