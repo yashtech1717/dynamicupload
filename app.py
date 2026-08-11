@@ -169,30 +169,83 @@ class FirestoreUser(UserMixin):
 # ============================================================
 
 def get_user_by_id(user_id):
-    if not db_firestore or not user_id:
+    if not user_id:
         return None
-    try:
-        doc = db_firestore.collection('users').document(str(user_id)).get()
-        if doc.exists:
-            return FirestoreUser(doc.to_dict())
-    except Exception as e:
-        logger.error(f"Error fetching user by id {user_id}: {e}")
+    if db_firestore:
+        try:
+            doc = db_firestore.collection('users').document(str(user_id)).get()
+            if doc.exists:
+                return FirestoreUser(doc.to_dict())
+            
+            target_id = int(user_id) if str(user_id).isdigit() else user_id
+            docs = db_firestore.collection('users').where('id', '==', target_id).limit(1).get()
+            for d in docs:
+                return FirestoreUser(d.to_dict())
+        except Exception as e:
+            logger.error(f"Error fetching user by id {user_id}: {e}")
+    
+    admin_u = os.environ.get('ADMIN_USERNAME', 'yash')
+    friend_u = os.environ.get('FRIEND_USERNAME', 'Glory')
+    admin_p = os.environ.get('ADMIN_PASSWORD', 'admin123')
+    friend_p = os.environ.get('FRIEND_PASSWORD', 'lory')
+
+    if str(user_id) in ('1', admin_u):
+        return FirestoreUser({
+            'id': 1, 'username': admin_u,
+            'password_hash': generate_password_hash(admin_p),
+            'is_admin': True, 'is_friend': True
+        })
+    elif str(user_id) in ('2', friend_u):
+        return FirestoreUser({
+            'id': 2, 'username': friend_u,
+            'password_hash': generate_password_hash(friend_p),
+            'is_admin': False, 'is_friend': True
+        })
+
     return None
 
 def get_user_by_username(username):
-    if not db_firestore or not username:
+    if not username:
         return None
-    try:
-        docs = db_firestore.collection('users').where('username', '==', username).limit(1).get()
-        for doc in docs:
-            return FirestoreUser(doc.to_dict())
-    except Exception as e:
-        logger.error(f"Error fetching user by username {username}: {e}")
+    if db_firestore:
+        try:
+            docs = db_firestore.collection('users').where('username', '==', username.strip()).limit(1).get()
+            for doc in docs:
+                return FirestoreUser(doc.to_dict())
+        except Exception as e:
+            logger.error(f"Error fetching user by username {username}: {e}")
+
+    admin_u = os.environ.get('ADMIN_USERNAME', 'yash')
+    friend_u = os.environ.get('FRIEND_USERNAME', 'Glory')
+    admin_p = os.environ.get('ADMIN_PASSWORD', 'admin123')
+    friend_p = os.environ.get('FRIEND_PASSWORD', 'lory')
+
+    clean_u = username.strip().lower()
+    if clean_u == admin_u.lower():
+        return FirestoreUser({
+            'id': 1, 'username': admin_u,
+            'password_hash': generate_password_hash(admin_p),
+            'is_admin': True, 'is_friend': True
+        })
+    elif clean_u == friend_u.lower():
+        return FirestoreUser({
+            'id': 2, 'username': friend_u,
+            'password_hash': generate_password_hash(friend_p),
+            'is_admin': False, 'is_friend': True
+        })
+
     return None
 
 def get_all_users():
     if not db_firestore:
-        return []
+        admin_u = os.environ.get('ADMIN_USERNAME', 'yash')
+        friend_u = os.environ.get('FRIEND_USERNAME', 'Glory')
+        admin_p = os.environ.get('ADMIN_PASSWORD', 'admin123')
+        friend_p = os.environ.get('FRIEND_PASSWORD', 'lory')
+        return [
+            FirestoreUser({'id': 1, 'username': admin_u, 'password_hash': generate_password_hash(admin_p), 'is_admin': True, 'is_friend': True}),
+            FirestoreUser({'id': 2, 'username': friend_u, 'password_hash': generate_password_hash(friend_p), 'is_admin': False, 'is_friend': True})
+        ]
     try:
         docs = db_firestore.collection('users').get()
         users = [FirestoreUser(doc.to_dict()) for doc in docs]
@@ -203,7 +256,7 @@ def get_all_users():
         return []
 
 def save_user(user_dict):
-    if not db_firestore:
+    if not db_firestore or not user_dict or not user_dict.get('id'):
         return None
     try:
         u_id = str(user_dict.get('id'))
