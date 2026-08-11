@@ -756,6 +756,7 @@ def save_site_settings(title, tagline, welcome):
 # ============================================================
 
 def upload_file_to_firebase(file, media_type='image'):
+    global firebase_bucket
     if not file or not file.filename:
         return None, None
 
@@ -773,46 +774,64 @@ def upload_file_to_firebase(file, media_type='image'):
 
     unique_name = f"{media_type}s/{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{filename}"
 
-    try:
-        blob = firebase_bucket.blob(unique_name)
-        content_type = file.content_type
-        if not content_type:
-            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-            content_type = f"{media_type}/{ext}" if ext else 'application/octet-stream'
+    from firebase_admin import storage
 
-        media_token = str(uuid.uuid4())
-        blob.metadata = {'firebaseStorageDownloadTokens': media_token}
+    # Bucket attempt candidates: primary configured bucket, plus alternate Firebase domain format (.firebasestorage.app <-> .appspot.com)
+    buckets_to_try = [firebase_bucket]
+    cur_name = firebase_bucket.name
+    if cur_name.endswith('.appspot.com'):
+        alt_name = cur_name.replace('.appspot.com', '.firebasestorage.app')
+        buckets_to_try.append(storage.bucket(alt_name))
+    elif cur_name.endswith('.firebasestorage.app'):
+        alt_name = cur_name.replace('.firebasestorage.app', '.appspot.com')
+        buckets_to_try.append(storage.bucket(alt_name))
 
-        # 1. Synchronous Upload to Firebase Storage
-        blob.upload_from_string(file_bytes, content_type=content_type)
-
-        # 2. Verify Object Exists in Firebase Storage
-        if not blob.exists():
-            raise RuntimeError(f"Firebase Storage object verification failed: Blob '{unique_name}' does not exist after upload.")
-
-        # 3. Obtain Permanent Download Reference URL
+    last_error = None
+    for target_bucket in buckets_to_try:
         try:
-            blob.make_public()
-            url = blob.public_url
-        except Exception:
-            encoded_name = quote(blob.name, safe='')
-            url = f"https://firebasestorage.googleapis.com/v0/b/{firebase_bucket.name}/o/{encoded_name}?alt=media&token={media_token}"
+            blob = target_bucket.blob(unique_name)
+            content_type = file.content_type
+            if not content_type:
+                ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+                content_type = f"{media_type}/{ext}" if ext else 'application/octet-stream'
 
-        logger.info(f"✅ Firebase Storage upload verified successfully on bucket '{firebase_bucket.name}': {url}")
-        return url, filename
-    except Exception as e:
-        logger.error(f"❌ Firebase Storage upload failed for {filename}: {e}")
-        err_msg = str(e)
-        if "404" in err_msg or "does not exist" in err_msg.lower():
-            project_id = 'happybirthday-a287a'
-            if firebase_cred_dict and isinstance(firebase_cred_dict, dict):
-                project_id = firebase_cred_dict.get('project_id', project_id)
-            raise RuntimeError(
-                f"Firebase Storage bucket '{firebase_bucket.name}' was not found (404)! "
-                f"Please ensure Cloud Storage is activated in Firebase Console -> Storage (https://console.firebase.google.com/project/{project_id}/storage) "
-                f"and that FIREBASE_STORAGE_BUCKET environment variable matches your Firebase bucket name."
-            )
-        raise RuntimeError(f"Firebase Storage upload failed: {err_msg}")
+            media_token = str(uuid.uuid4())
+            blob.metadata = {'firebaseStorageDownloadTokens': media_token}
+
+            # 1. Synchronous Upload to Firebase Storage
+            blob.upload_from_string(file_bytes, content_type=content_type)
+
+            # 2. Verify Object Exists in Firebase Storage
+            if not blob.exists():
+                raise RuntimeError(f"Firebase Storage object verification failed: Blob '{unique_name}' does not exist after upload.")
+
+            # 3. Obtain Permanent Download Reference URL
+            try:
+                blob.make_public()
+                url = blob.public_url
+            except Exception:
+                encoded_name = quote(blob.name, safe='')
+                url = f"https://firebasestorage.googleapis.com/v0/b/{target_bucket.name}/o/{encoded_name}?alt=media&token={media_token}"
+
+            # Permanently update global firebase_bucket to working bucket
+            firebase_bucket = target_bucket
+            logger.info(f"✅ Firebase Storage upload verified successfully on bucket '{target_bucket.name}': {url}")
+            return url, filename
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Storage upload attempt failed on bucket '{target_bucket.name}': {e}")
+
+    err_msg = str(last_error)
+    if "404" in err_msg or "does not exist" in err_msg.lower():
+        project_id = 'happybirthday-a287a'
+        if firebase_cred_dict and isinstance(firebase_cred_dict, dict):
+            project_id = firebase_cred_dict.get('project_id', project_id)
+        raise RuntimeError(
+            f"Firebase Storage bucket was not found (404)! "
+            f"Please ensure Cloud Storage is activated in Firebase Console -> Storage (https://console.firebase.google.com/project/{project_id}/storage) "
+            f"and click 'Get Started'."
+        )
+    raise RuntimeError(f"Firebase Storage upload failed: {err_msg}")
 
 def process_media_uploads(request_files, media_specs):
     """
