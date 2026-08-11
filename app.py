@@ -43,9 +43,10 @@ login_manager.login_view = 'login'
 firebase_initialized = False
 db_firestore = None
 firebase_bucket = None
+firebase_cred_dict = None
 
 def init_firebase():
-    global firebase_initialized, db_firestore, firebase_bucket
+    global firebase_initialized, db_firestore, firebase_bucket, firebase_cred_dict
     if firebase_initialized:
         return
 
@@ -69,17 +70,22 @@ def init_firebase():
                         pass
                 if (sa_str.startswith("'") and sa_str.endswith("'")) or (sa_str.startswith('"') and sa_str.endswith('"') and not sa_str.startswith('{')):
                     sa_str = sa_str[1:-1].strip()
-                cred_dict = json.loads(sa_str)
-                if isinstance(cred_dict, dict) and 'private_key' in cred_dict:
-                    if isinstance(cred_dict['private_key'], str) and '\\n' in cred_dict['private_key']:
-                        cred_dict['private_key'] = cred_dict['private_key'].replace('\\n', '\n')
-                cred = credentials.Certificate(cred_dict)
+                firebase_cred_dict = json.loads(sa_str)
+                if isinstance(firebase_cred_dict, dict) and 'private_key' in firebase_cred_dict:
+                    if isinstance(firebase_cred_dict['private_key'], str) and '\\n' in firebase_cred_dict['private_key']:
+                        firebase_cred_dict['private_key'] = firebase_cred_dict['private_key'].replace('\\n', '\n')
+                cred = credentials.Certificate(firebase_cred_dict)
                 logger.info("🔑 Loaded Firebase credentials from FIREBASE_SERVICE_ACCOUNT env var")
             except Exception as e:
                 logger.error(f"Error parsing FIREBASE_SERVICE_ACCOUNT env var: {e}")
 
         if not cred and os.path.exists(service_account_path):
             cred = credentials.Certificate(service_account_path)
+            try:
+                with open(service_account_path, 'r', encoding='utf-8') as f:
+                    firebase_cred_dict = json.load(f)
+            except Exception:
+                pass
             logger.info(f"🔑 Loaded Firebase credentials from file: {service_account_path}")
 
         if cred:
@@ -717,8 +723,21 @@ def upload_file_to_firebase(file, media_type='video'):
     from firebase_admin import storage
 
     bucket_candidates = []
+    
+    # Auto-discover actual buckets in the Google Cloud Project
+    if firebase_cred_dict and isinstance(firebase_cred_dict, dict):
+        try:
+            from google.cloud import storage as gcs
+            gcs_client = gcs.Client.from_service_account_info(firebase_cred_dict)
+            discovered = [b.name for b in gcs_client.list_buckets()]
+            if discovered:
+                logger.info(f"🔍 Auto-discovered existing Storage buckets: {discovered}")
+                bucket_candidates.extend(discovered)
+        except Exception as ge:
+            logger.warning(f"Note listing buckets via GCS client: {ge}")
+
     env_bucket = os.environ.get('FIREBASE_STORAGE_BUCKET', '').strip()
-    if env_bucket:
+    if env_bucket and env_bucket not in bucket_candidates:
         bucket_candidates.append(env_bucket)
 
     project_id = 'happybirthday-a287a'
