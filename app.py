@@ -903,6 +903,37 @@ def get_media_url(data, media_type='image'):
 def utility_processor():
     return dict(get_site_settings=get_site_settings, get_media_url=get_media_url)
 
+@app.errorhandler(500)
+def internal_server_error(e):
+    import html, traceback
+    tb_str = traceback.format_exc()
+    logger.error(f"🔥 500 Internal Server Error Traceback: {tb_str}")
+    
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Application Error Diagnostic</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+    </head>
+    <body style="font-family: system-ui, -apple-system, sans-serif; padding: 25px; background: #0f172a; color: #f8fafc; margin: 0;">
+        <div style="max-width: 800px; margin: 20px auto; background: #1e293b; padding: 30px; border-radius: 20px; border-left: 6px solid #ef4444; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+            <h2 style="color: #f87171; margin-top: 0; display: flex; align-items: center; gap: 10px;">⚠️ Application Error Diagnostic</h2>
+            <p style="font-size: 16px; color: #cbd5e1;">An exception occurred during request processing:</p>
+            <div style="background: #090d16; padding: 15px; border-radius: 12px; margin: 15px 0; color: #fca5a5; font-weight: bold; font-family: monospace;">{html.escape(str(e))}</div>
+            <details open style="margin-top: 20px;">
+                <summary style="cursor: pointer; font-weight: bold; color: #38bdf8; font-size: 15px;">🔍 Full Exception Traceback:</summary>
+                <pre style="background: #090d16; padding: 18px; border-radius: 12px; overflow-x: auto; color: #fca5a5; font-size: 13px; line-height: 1.5; margin-top: 10px;">{html.escape(tb_str)}</pre>
+            </details>
+            <div style="margin-top: 25px; display: flex; gap: 15px;">
+                <a href="/dashboard" style="display: inline-block; padding: 12px 24px; background: #3b82f6; color: white; border-radius: 12px; text-decoration: none; font-weight: bold;">← Back to Dashboard</a>
+                <a href="/login" style="display: inline-block; padding: 12px 24px; background: #475569; color: white; border-radius: 12px; text-decoration: none; font-weight: bold;">🔑 Login Page</a>
+            </div>
+        </div>
+    </body>
+    </html>
+    """, 500
+
 @app.template_filter('media_url')
 def media_url_filter(data, media_type='image'):
     return get_media_url(data, media_type)
