@@ -1,17 +1,16 @@
 # ============================================================
 # YASH WORLD - Private Messaging & QA Platform
-# Complete Firebase-Native Cloud Architecture
-# Primary DB: Firebase Firestore
-# Primary Storage: Firebase Storage
+# Complete Supabase-Native Cloud Architecture
+# Primary DB: Supabase PostgreSQL
+# Primary Storage: Supabase Storage
 # ============================================================
 
 import os
 import json
 import logging
 import uuid
-import base64
 from datetime import datetime
-from urllib.parse import urlparse, parse_qs, unquote, quote
+from urllib.parse import urlparse, unquote
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -37,76 +36,51 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # ============================================================
-# FIREBASE STORAGE & FIRESTORE CONFIGURATION
+# SUPABASE DATABASE & STORAGE CONFIGURATION
 # ============================================================
 
-firebase_initialized = False
-db_firestore = None
-firebase_bucket = None
-firebase_cred_dict = None
+supabase_initialized = False
+supabase_client = None
+supabase_url = None
+supabase_key = None
+supabase_bucket_name = 'media'
 
-def init_firebase():
-    global firebase_initialized, db_firestore, firebase_bucket, firebase_cred_dict
-    if firebase_initialized:
+def init_supabase():
+    global supabase_initialized, supabase_client, supabase_url, supabase_key, supabase_bucket_name
+    if supabase_initialized:
         return
 
     try:
-        import firebase_admin
-        from firebase_admin import credentials, storage, firestore
+        from supabase import create_client, Client
 
-        cred = None
-        service_account_json = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
-        service_account_path = os.environ.get('FIREBASE_SERVICE_ACCOUNT_PATH', 'service-account.json')
+        supabase_url = os.environ.get('SUPABASE_URL', '').strip()
+        supabase_key = os.environ.get('SUPABASE_KEY', '').strip()
+        supabase_bucket_name = os.environ.get('SUPABASE_BUCKET', 'media').strip()
 
-        if service_account_json:
-            try:
-                sa_str = service_account_json.strip()
-                if not sa_str.startswith('{'):
-                    try:
-                        decoded = base64.b64decode(sa_str).decode('utf-8')
-                        if decoded.strip().startswith('{'):
-                            sa_str = decoded.strip()
-                    except Exception:
-                        pass
-                if (sa_str.startswith("'") and sa_str.endswith("'")) or (sa_str.startswith('"') and sa_str.endswith('"') and not sa_str.startswith('{')):
-                    sa_str = sa_str[1:-1].strip()
-                firebase_cred_dict = json.loads(sa_str)
-                if isinstance(firebase_cred_dict, dict) and 'private_key' in firebase_cred_dict:
-                    if isinstance(firebase_cred_dict['private_key'], str) and '\\n' in firebase_cred_dict['private_key']:
-                        firebase_cred_dict['private_key'] = firebase_cred_dict['private_key'].replace('\\n', '\n')
-                cred = credentials.Certificate(firebase_cred_dict)
-                logger.info("🔑 Loaded Firebase credentials from FIREBASE_SERVICE_ACCOUNT env var")
-            except Exception as e:
-                logger.error(f"Error parsing FIREBASE_SERVICE_ACCOUNT env var: {e}")
+        if not supabase_url or not supabase_key:
+            # Fallback check for local development credentials
+            env_file = os.path.join(os.path.dirname(__file__), '.env')
+            if os.path.exists(env_file):
+                with open(env_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.startswith('SUPABASE_URL='):
+                            supabase_url = line.split('=', 1)[1].strip()
+                        elif line.startswith('SUPABASE_KEY='):
+                            supabase_key = line.split('=', 1)[1].strip()
 
-        if not cred and os.path.exists(service_account_path):
-            cred = credentials.Certificate(service_account_path)
-            try:
-                with open(service_account_path, 'r', encoding='utf-8') as f:
-                    firebase_cred_dict = json.load(f)
-            except Exception:
-                pass
-            logger.info(f"🔑 Loaded Firebase credentials from file: {service_account_path}")
-
-        if cred:
-            storage_bucket_name = os.environ.get('FIREBASE_STORAGE_BUCKET', 'happybirthday-a287a.appspot.com').strip()
-            if not firebase_admin._apps:
-                firebase_admin.initialize_app(cred, {
-                    'storageBucket': storage_bucket_name
-                })
-            firebase_initialized = True
-            db_firestore = firestore.client()
-            firebase_bucket = storage.bucket(storage_bucket_name)
-            logger.info(f"🔥 Firebase Storage ({storage_bucket_name}) & Firestore initialized successfully!")
+        if supabase_url and supabase_key:
+            supabase_client = create_client(supabase_url, supabase_key)
+            supabase_initialized = True
+            logger.info(f"⚡ Supabase PostgreSQL ({supabase_url}) & Storage ('{supabase_bucket_name}') initialized successfully!")
         else:
-            logger.error("❌ CRITICAL: No Firebase credentials found. Please set FIREBASE_SERVICE_ACCOUNT env var!")
-            raise RuntimeError("CRITICAL: No Firebase credentials found. Please set FIREBASE_SERVICE_ACCOUNT environment variable.")
+            logger.error("❌ CRITICAL: No Supabase credentials found. Please set SUPABASE_URL and SUPABASE_KEY environment variables!")
+            raise RuntimeError("CRITICAL: No Supabase credentials found. Please set SUPABASE_URL and SUPABASE_KEY environment variables.")
     except Exception as e:
-        logger.error(f"❌ Firebase initialization error: {e}")
-        raise RuntimeError(f"Firebase initialization failed: {e}")
+        logger.error(f"❌ Supabase initialization error: {e}")
+        raise RuntimeError(f"Supabase initialization failed: {e}")
 
-# Call Firebase init
-init_firebase()
+# Call Supabase init
+init_supabase()
 
 @app.template_filter('format_datetime')
 def format_datetime_filter(value, fmt='%d %b %Y, %H:%M'):
@@ -126,7 +100,7 @@ def format_datetime_filter(value, fmt='%d %b %Y, %H:%M'):
     return str(value)
 
 # ============================================================
-# FIRESTORE DATA WRAPPER & HELPER CLASSES
+# SUPABASE DATA WRAPPER & HELPER CLASSES
 # ============================================================
 
 class SafeDateTime:
@@ -170,14 +144,14 @@ class SafeDateTime:
     def __str__(self):
         return self.strftime()
 
-class FirestoreDoc:
+class SupabaseDoc:
     def __init__(self, data_dict):
         if not data_dict:
             data_dict = {}
         self._data = dict(data_dict)
         for k, v in self._data.items():
             if isinstance(v, dict):
-                setattr(self, k, FirestoreDoc(v))
+                setattr(self, k, SupabaseDoc(v))
             elif k in ('created_at', 'updated_at', 'last_login', 'submitted_at'):
                 setattr(self, k, SafeDateTime(v))
             else:
@@ -193,7 +167,7 @@ class FirestoreDoc:
     def to_dict(self):
         return self._data
 
-class FirestoreUser(UserMixin):
+class SupabaseUser(UserMixin):
     def __init__(self, doc_data):
         self._data = doc_data or {}
         self.id = str(self._data.get('id', ''))
@@ -213,7 +187,7 @@ class FirestoreUser(UserMixin):
         return str(self.id)
 
 # ============================================================
-# FIRESTORE DATA ACCESS LAYER
+# SUPABASE DATA ACCESS LAYER (POSTGRESQL)
 # ============================================================
 
 _DEFAULT_ADMIN_USER = os.environ.get('ADMIN_USERNAME', 'yash')
@@ -224,80 +198,73 @@ _DEFAULT_FRIEND_HASH = generate_password_hash(os.environ.get('FRIEND_PASSWORD', 
 def get_user_by_id(user_id):
     if not user_id:
         return None
-    if not db_firestore:
-        raise RuntimeError("Firestore is unavailable. Database connection failed.")
+    if not supabase_initialized or not supabase_client:
+        raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
     try:
-        doc = db_firestore.collection('users').document(str(user_id)).get()
-        if doc.exists:
-            return FirestoreUser(doc.to_dict())
-        
         target_id = int(user_id) if str(user_id).isdigit() else user_id
-        docs = db_firestore.collection('users').where('id', '==', target_id).limit(1).get()
-        for d in docs:
-            return FirestoreUser(d.to_dict())
+        res = supabase_client.table('users').select('*').eq('id', target_id).limit(1).execute()
+        if res.data and len(res.data) > 0:
+            return SupabaseUser(res.data[0])
         return None
     except Exception as e:
         logger.error(f"Error fetching user by id {user_id}: {e}")
-        raise RuntimeError(f"Firestore read error fetching user {user_id}: {e}")
+        raise RuntimeError(f"Supabase read error fetching user {user_id}: {e}")
 
 def get_user_by_username(username):
     if not username:
         return None
-    if not db_firestore:
-        raise RuntimeError("Firestore is unavailable. Database connection failed.")
+    if not supabase_initialized or not supabase_client:
+        raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
     try:
-        docs = db_firestore.collection('users').where('username', '==', username.strip()).limit(1).get()
-        for doc in docs:
-            return FirestoreUser(doc.to_dict())
+        res = supabase_client.table('users').select('*').eq('username', username.strip()).limit(1).execute()
+        if res.data and len(res.data) > 0:
+            return SupabaseUser(res.data[0])
         return None
     except Exception as e:
         logger.error(f"Error fetching user by username {username}: {e}")
-        raise RuntimeError(f"Firestore read error fetching user {username}: {e}")
+        raise RuntimeError(f"Supabase read error fetching user {username}: {e}")
 
 def get_all_users():
-    if not db_firestore:
-        raise RuntimeError("Firestore is unavailable. Database connection failed.")
+    if not supabase_initialized or not supabase_client:
+        raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
     try:
-        docs = db_firestore.collection('users').get()
-        users = [FirestoreUser(doc.to_dict()) for doc in docs]
-        users.sort(key=lambda u: int(u.id) if str(u.id).isdigit() else u.id)
+        res = supabase_client.table('users').select('*').order('id').execute()
+        users = [SupabaseUser(d) for d in (res.data or [])]
         return users
     except Exception as e:
         logger.error(f"Error fetching all users: {e}")
-        raise RuntimeError(f"Firestore read error fetching all users: {e}")
+        raise RuntimeError(f"Supabase read error fetching all users: {e}")
 
 def save_user(user_dict):
-    if not db_firestore or not user_dict or not user_dict.get('id'):
+    if not supabase_initialized or not supabase_client or not user_dict:
         return None
     try:
-        u_id = str(user_dict.get('id'))
-        db_firestore.collection('users').document(u_id).set(user_dict, merge=True)
-        return get_user_by_id(u_id)
+        res = supabase_client.table('users').upsert(user_dict).execute()
+        if res.data and len(res.data) > 0:
+            return SupabaseUser(res.data[0])
+        return get_user_by_id(user_dict.get('id'))
     except Exception as e:
         logger.error(f"Error saving user: {e}")
         return None
 
-def get_next_id(collection_name):
-    if not db_firestore:
-        raise RuntimeError(f"Firestore is not initialized. Cannot generate atomic ID for {collection_name}.")
+def get_next_id(table_name):
+    if not supabase_initialized or not supabase_client:
+        raise RuntimeError(f"Supabase is not initialized. Cannot generate atomic ID for {table_name}.")
     try:
-        from firebase_admin import firestore
-        @firestore.transactional
-        def _txn_counter(transaction, counter_ref):
-            snap = counter_ref.get(transaction=transaction)
-            if snap.exists:
-                cur_val = snap.get('last_id') or 0
-                new_val = cur_val + 1
-            else:
-                new_val = 1
-            transaction.set(counter_ref, {'last_id': new_val}, merge=True)
-            return new_val
-
-        transaction = db_firestore.transaction()
-        counter_ref = db_firestore.collection('counters').document(str(collection_name))
-        return _txn_counter(transaction, counter_ref)
+        # Atomic counter synchronization via Supabase 'counters' table
+        res = supabase_client.table('counters').select('last_id').eq('name', table_name).execute()
+        if res.data and len(res.data) > 0:
+            cur_val = res.data[0].get('last_id', 0)
+            new_val = cur_val + 1
+            supabase_client.table('counters').update({'last_id': new_val}).eq('name', table_name).execute()
+        else:
+            # Query max ID from table if counter not seeded
+            max_res = supabase_client.table(table_name).select('id').order('id', desc=True).limit(1).execute()
+            new_val = (max_res.data[0]['id'] + 1) if max_res.data and len(max_res.data) > 0 and 'id' in max_res.data[0] else 1
+            supabase_client.table('counters').insert({'name': table_name, 'last_id': new_val}).execute()
+        return new_val
     except Exception as e:
-        logger.error(f"Error generating atomic counter for {collection_name}: {e}")
+        logger.warning(f"Note generating ID via counters for {table_name}: {e}")
         return int(datetime.utcnow().timestamp() * 1000)
 
 _CACHE_STORE = {}
@@ -323,65 +290,61 @@ def invalidate_cache(key=None):
 
 def get_all_questions():
     def _fetch():
-        if not db_firestore:
-            return []
+        if not supabase_initialized or not supabase_client:
+            raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
         try:
             users_map = {str(u.id): u for u in get_all_users()}
-            docs = db_firestore.collection('questions').get()
+            res = supabase_client.table('questions').select('*').order('created_at', desc=True).execute()
             questions = []
-            for doc in docs:
-                d = doc.to_dict()
+            for d in (res.data or []):
                 u_id = str(d.get('user_id'))
                 asker = users_map.get(u_id)
                 if asker:
                     d['asker'] = {'username': asker.username, 'id': asker.id}
-                questions.append(FirestoreDoc(d))
-            
-            questions.sort(key=lambda q: q.created_at.dt if getattr(q, 'created_at', None) and getattr(q.created_at, 'dt', None) else datetime.min, reverse=True)
+                questions.append(SupabaseDoc(d))
             return questions
         except Exception as e:
             logger.error(f"Error fetching all questions: {e}")
-            return []
+            raise RuntimeError(f"Supabase read error fetching all questions: {e}")
     return get_cached('all_questions', _fetch, ttl=10)
 
 def get_question_by_id(question_id):
-    if not db_firestore or not question_id:
+    if not supabase_initialized or not supabase_client or not question_id:
         return None
     try:
-        doc = db_firestore.collection('questions').document(str(question_id)).get()
-        if doc.exists:
-            d = doc.to_dict()
+        target_id = int(question_id) if str(question_id).isdigit() else question_id
+        res = supabase_client.table('questions').select('*').eq('id', target_id).limit(1).execute()
+        if res.data and len(res.data) > 0:
+            d = res.data[0]
             asker = get_user_by_id(d.get('user_id'))
             if asker:
                 d['asker'] = {'username': asker.username, 'id': asker.id}
-            return FirestoreDoc(d)
+            return SupabaseDoc(d)
     except Exception as e:
         logger.error(f"Error fetching question {question_id}: {e}")
     return None
 
 def save_question(q_dict):
-    if not db_firestore:
+    if not supabase_initialized or not supabase_client or not q_dict:
         return None
     try:
-        if 'id' not in q_dict or not q_dict['id']:
-            q_dict['id'] = get_next_id('questions')
-        
-        q_id = str(q_dict['id'])
-        if 'created_at' not in q_dict or not q_dict['created_at']:
-            q_dict['created_at'] = datetime.utcnow().isoformat()
-        q_dict['updated_at'] = datetime.utcnow().isoformat()
-        
         clean_dict = {k: v for k, v in q_dict.items() if k not in ('asker', 'replies')}
-        db_firestore.collection('questions').document(q_id).set(clean_dict, merge=True)
+        if 'created_at' not in clean_dict or not clean_dict['created_at']:
+            clean_dict['created_at'] = datetime.utcnow().isoformat()
+        clean_dict['updated_at'] = datetime.utcnow().isoformat()
+
+        res = supabase_client.table('questions').upsert(clean_dict).execute()
         invalidate_cache('all_questions')
-        logger.info(f"🔥 Question {q_id} saved to Firestore")
-        return get_question_by_id(q_id)
+        logger.info("⚡ Question saved to Supabase PostgreSQL")
+        if res.data and len(res.data) > 0:
+            return SupabaseDoc(res.data[0])
+        return get_question_by_id(q_dict.get('id'))
     except Exception as e:
         logger.error(f"Error saving question: {e}")
         return None
 
 def delete_question_doc(question_id):
-    if not db_firestore or not question_id:
+    if not supabase_initialized or not supabase_client or not question_id:
         return False
     try:
         q = get_question_by_id(question_id)
@@ -389,36 +352,35 @@ def delete_question_doc(question_id):
             for m_attr in ('image_data', 'video_data', 'audio_data', 'answer_image_data', 'answer_video_data', 'answer_audio_data'):
                 url = q.get(m_attr)
                 if url:
-                    delete_file_from_firebase(url)
+                    delete_file_from_supabase(url)
             
             replies = get_replies_for_question(question_id)
             for r in replies:
                 delete_reply_doc(r.id)
 
-            db_firestore.collection('questions').document(str(question_id)).delete()
+            target_id = int(question_id) if str(question_id).isdigit() else question_id
+            supabase_client.table('questions').delete().eq('id', target_id).execute()
             invalidate_cache('all_questions')
-            logger.info(f"🔥 Question {question_id} deleted from Firestore")
+            logger.info(f"⚡ Question {question_id} deleted from Supabase PostgreSQL")
             return True
     except Exception as e:
         logger.error(f"Error deleting question {question_id}: {e}")
     return False
 
 def get_replies_for_question(question_id):
-    if not db_firestore or not question_id:
+    if not supabase_initialized or not supabase_client or not question_id:
         return []
     try:
         users_map = {str(u.id): u for u in get_all_users()}
-        docs = db_firestore.collection('replies').where('question_id', '==', int(question_id)).get()
+        target_id = int(question_id) if str(question_id).isdigit() else question_id
+        res = supabase_client.table('replies').select('*').eq('question_id', target_id).order('created_at').execute()
         replies = []
-        for doc in docs:
-            d = doc.to_dict()
+        for d in (res.data or []):
             u_id = str(d.get('user_id'))
             replier = users_map.get(u_id)
             if replier:
                 d['replier'] = {'username': replier.username, 'id': replier.id}
-            replies.append(FirestoreDoc(d))
-        
-        replies.sort(key=lambda r: r.created_at if isinstance(r.created_at, datetime) else datetime.min)
+            replies.append(SupabaseDoc(d))
         return replies
     except Exception as e:
         logger.error(f"Error fetching replies for question {question_id}: {e}")
@@ -426,18 +388,17 @@ def get_replies_for_question(question_id):
 
 def get_all_replies():
     def _fetch():
-        if not db_firestore:
-            return []
+        if not supabase_initialized or not supabase_client:
+            raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
         try:
             users_map = {str(u.id): u for u in get_all_users()}
-            docs = db_firestore.collection('replies').get()
+            res = supabase_client.table('replies').select('*').order('created_at', desc=True).execute()
             
-            q_docs = db_firestore.collection('questions').get()
-            q_map = {str(qd.to_dict().get('id')): qd.to_dict() for qd in q_docs}
+            q_res = supabase_client.table('questions').select('*').execute()
+            q_map = {str(qd.get('id')): qd for qd in (q_res.data or [])}
 
             replies = []
-            for doc in docs:
-                d = doc.to_dict()
+            for d in (res.data or []):
                 u_id = str(d.get('user_id'))
                 replier = users_map.get(u_id)
                 if replier:
@@ -446,163 +407,150 @@ def get_all_replies():
                 q_id = str(d.get('question_id'))
                 if q_id in q_map:
                     d['question'] = q_map[q_id]
-                replies.append(FirestoreDoc(d))
-                
-            replies.sort(key=lambda r: getattr(r, 'created_at', datetime.min), reverse=True)
+                replies.append(SupabaseDoc(d))
             return replies
         except Exception as e:
             logger.error(f"Error fetching all replies: {e}")
-            return []
+            raise RuntimeError(f"Supabase read error fetching all replies: {e}")
     return get_cached('all_replies', _fetch, ttl=10)
 
 def save_reply(r_dict):
-    if not db_firestore:
+    if not supabase_initialized or not supabase_client or not r_dict:
         return None
     try:
-        if 'id' not in r_dict or not r_dict['id']:
-            r_dict['id'] = get_next_id('replies')
-            
-        r_id = str(r_dict['id'])
-        if 'created_at' not in r_dict or not r_dict['created_at']:
-            r_dict['created_at'] = datetime.utcnow().isoformat()
-        r_dict['updated_at'] = datetime.utcnow().isoformat()
-        
         clean_dict = {k: v for k, v in r_dict.items() if k not in ('replier', 'question')}
-        db_firestore.collection('replies').document(r_id).set(clean_dict, merge=True)
+        if 'created_at' not in clean_dict or not clean_dict['created_at']:
+            clean_dict['created_at'] = datetime.utcnow().isoformat()
+        clean_dict['updated_at'] = datetime.utcnow().isoformat()
+
+        res = supabase_client.table('replies').upsert(clean_dict).execute()
         invalidate_cache('all_replies')
-        logger.info(f"🔥 Reply {r_id} saved to Firestore")
-        return FirestoreDoc(r_dict)
+        logger.info("⚡ Reply saved to Supabase PostgreSQL")
+        if res.data and len(res.data) > 0:
+            return SupabaseDoc(res.data[0])
+        return SupabaseDoc(clean_dict)
     except Exception as e:
         logger.error(f"Error saving reply: {e}")
         return None
 
 def delete_reply_doc(reply_id):
-    if not db_firestore or not reply_id:
+    if not supabase_initialized or not supabase_client or not reply_id:
         return False
     try:
-        doc = db_firestore.collection('replies').document(str(reply_id)).get()
-        if doc.exists:
-            d = doc.to_dict()
+        target_id = int(reply_id) if str(reply_id).isdigit() else reply_id
+        res = supabase_client.table('replies').select('*').eq('id', target_id).limit(1).execute()
+        if res.data and len(res.data) > 0:
+            d = res.data[0]
             for m_attr in ('image_data', 'video_data', 'audio_data'):
                 url = d.get(m_attr)
                 if url:
-                    delete_file_from_firebase(url)
-            db_firestore.collection('replies').document(str(reply_id)).delete()
+                    delete_file_from_supabase(url)
+            supabase_client.table('replies').delete().eq('id', target_id).execute()
             invalidate_cache('all_replies')
-            logger.info(f"🔥 Reply {reply_id} deleted from Firestore")
+            logger.info(f"⚡ Reply {reply_id} deleted from Supabase PostgreSQL")
             return True
     except Exception as e:
         logger.error(f"Error deleting reply {reply_id}: {e}")
     return False
 
 def get_all_typing_texts():
-    if not db_firestore:
+    if not supabase_initialized or not supabase_client:
         return []
     try:
-        docs = db_firestore.collection('typing_texts').get()
-        texts = []
-        for doc in docs:
-            d = doc.to_dict()
-            if 'id' not in d or not d['id']:
-                d['id'] = int(doc.id) if str(doc.id).isdigit() else 1
-            texts.append(FirestoreDoc(d))
-        texts.sort(key=lambda t: getattr(t, 'created_at', datetime.min), reverse=True)
+        res = supabase_client.table('typing_texts').select('*').order('created_at', desc=True).execute()
+        texts = [SupabaseDoc(d) for d in (res.data or [])]
         return texts
     except Exception as e:
         logger.error(f"Error fetching typing texts: {e}")
         return []
 
 def get_active_typing_text():
-    if not db_firestore:
+    if not supabase_initialized or not supabase_client:
         return None
     try:
-        docs = db_firestore.collection('typing_texts').where('is_active', '==', True).limit(1).get()
-        for doc in docs:
-            return FirestoreDoc(doc.to_dict())
+        res = supabase_client.table('typing_texts').select('*').eq('is_active', True).limit(1).execute()
+        if res.data and len(res.data) > 0:
+            return SupabaseDoc(res.data[0])
     except Exception as e:
         logger.error(f"Error fetching active typing text: {e}")
     return None
 
 def save_typing_text(text_str, is_active=True):
-    if not db_firestore:
+    if not supabase_initialized or not supabase_client:
         return None
     try:
         if is_active:
-            docs = db_firestore.collection('typing_texts').get()
-            for doc in docs:
-                db_firestore.collection('typing_texts').document(doc.id).update({'is_active': False})
+            supabase_client.table('typing_texts').update({'is_active': False}).neq('id', 0).execute()
         
-        t_id = get_next_id('typing_texts')
         t_dict = {
-            'id': t_id,
             'text': text_str,
             'is_active': is_active,
             'created_at': datetime.utcnow().isoformat(),
             'updated_at': datetime.utcnow().isoformat()
         }
-        db_firestore.collection('typing_texts').document(str(t_id)).set(t_dict)
-        return FirestoreDoc(t_dict)
+        res = supabase_client.table('typing_texts').insert(t_dict).execute()
+        if res.data and len(res.data) > 0:
+            return SupabaseDoc(res.data[0])
+        return SupabaseDoc(t_dict)
     except Exception as e:
         logger.error(f"Error saving typing text: {e}")
         return None
 
 def update_typing_text(text_id, text_str):
-    if not db_firestore or not text_id:
+    if not supabase_initialized or not supabase_client or not text_id:
         return None
     try:
-        db_firestore.collection('typing_texts').document(str(text_id)).update({
+        target_id = int(text_id) if str(text_id).isdigit() else text_id
+        res = supabase_client.table('typing_texts').update({
             'text': text_str,
             'updated_at': datetime.utcnow().isoformat()
-        })
-        doc = db_firestore.collection('typing_texts').document(str(text_id)).get()
-        return FirestoreDoc(doc.to_dict()) if doc.exists else None
+        }).eq('id', target_id).execute()
+        if res.data and len(res.data) > 0:
+            return SupabaseDoc(res.data[0])
+        return None
     except Exception as e:
         logger.error(f"Error updating typing text {text_id}: {e}")
         return None
 
 def activate_typing_text(text_id):
-    if not db_firestore or not text_id:
+    if not supabase_initialized or not supabase_client or not text_id:
         return False
     try:
-        docs = db_firestore.collection('typing_texts').get()
-        for doc in docs:
-            db_firestore.collection('typing_texts').document(doc.id).update({'is_active': False})
-        db_firestore.collection('typing_texts').document(str(text_id)).update({'is_active': True})
+        target_id = int(text_id) if str(text_id).isdigit() else text_id
+        supabase_client.table('typing_texts').update({'is_active': False}).neq('id', 0).execute()
+        supabase_client.table('typing_texts').update({'is_active': True}).eq('id', target_id).execute()
         return True
     except Exception as e:
         logger.error(f"Error activating typing text {text_id}: {e}")
         return False
 
 def delete_typing_text_doc(text_id):
-    if not db_firestore or not text_id:
+    if not supabase_initialized or not supabase_client or not text_id:
         return False
     try:
-        db_firestore.collection('typing_texts').document(str(text_id)).delete()
+        target_id = int(text_id) if str(text_id).isdigit() else text_id
+        supabase_client.table('typing_texts').delete().eq('id', target_id).execute()
         return True
     except Exception as e:
         logger.error(f"Error deleting typing text {text_id}: {e}")
         return False
 
 def get_all_feedback_questions():
-    if not db_firestore:
+    if not supabase_initialized or not supabase_client:
         return []
     try:
-        docs = db_firestore.collection('feedback_questions').get()
+        res = supabase_client.table('feedback_questions').select('*').order('created_at', desc=True).execute()
         questions = []
-        for doc in docs:
-            d = doc.to_dict()
-            r_docs = db_firestore.collection('feedback_responses').where('question_id', '==', d.get('id')).get()
+        for d in (res.data or []):
+            r_res = supabase_client.table('feedback_responses').select('*').eq('question_id', d.get('id')).execute()
             responses = []
-            for rd in r_docs:
-                r_dict = rd.to_dict()
-                u = get_user_by_id(r_dict.get('user_id'))
+            for rd in (r_res.data or []):
+                u = get_user_by_id(rd.get('user_id'))
                 if u:
-                    r_dict['user'] = {'username': u.username, 'id': u.id}
-                responses.append(FirestoreDoc(r_dict))
+                    rd['user'] = {'username': u.username, 'id': u.id}
+                responses.append(SupabaseDoc(rd))
             d['responses'] = responses
-            questions.append(FirestoreDoc(d))
-        
-        questions.sort(key=lambda q: q.created_at if isinstance(q.created_at, datetime) else datetime.min, reverse=True)
+            questions.append(SupabaseDoc(d))
         return questions
     except Exception as e:
         logger.error(f"Error fetching feedback questions: {e}")
@@ -613,81 +561,81 @@ def get_active_feedback_questions():
     return [q for q in all_q if getattr(q, 'is_active', True)]
 
 def save_feedback_question(question_str):
-    if not db_firestore:
+    if not supabase_initialized or not supabase_client:
         return None
     try:
-        q_id = get_next_id('feedback_questions')
         q_dict = {
-            'id': q_id,
             'question': question_str,
             'is_active': True,
             'created_at': datetime.utcnow().isoformat()
         }
-        db_firestore.collection('feedback_questions').document(str(q_id)).set(q_dict)
-        return FirestoreDoc(q_dict)
+        res = supabase_client.table('feedback_questions').insert(q_dict).execute()
+        if res.data and len(res.data) > 0:
+            return SupabaseDoc(res.data[0])
+        return SupabaseDoc(q_dict)
     except Exception as e:
         logger.error(f"Error saving feedback question: {e}")
         return None
 
 def toggle_feedback_question(q_id):
-    if not db_firestore or not q_id:
+    if not supabase_initialized or not supabase_client or not q_id:
         return False
     try:
-        doc_ref = db_firestore.collection('feedback_questions').document(str(q_id))
-        doc = doc_ref.get()
-        if doc.exists:
-            curr = doc.to_dict().get('is_active', True)
-            doc_ref.update({'is_active': not curr})
-            return not curr
+        target_id = int(q_id) if str(q_id).isdigit() else q_id
+        res = supabase_client.table('feedback_questions').select('is_active').eq('id', target_id).limit(1).execute()
+        if res.data and len(res.data) > 0:
+            curr = res.data[0].get('is_active', True)
+            new_val = not curr
+            supabase_client.table('feedback_questions').update({'is_active': new_val}).eq('id', target_id).execute()
+            return new_val
     except Exception as e:
         logger.error(f"Error toggling feedback question {q_id}: {e}")
     return False
 
 def delete_feedback_question_doc(q_id):
-    if not db_firestore or not q_id:
+    if not supabase_initialized or not supabase_client or not q_id:
         return False
     try:
-        db_firestore.collection('feedback_questions').document(str(q_id)).delete()
+        target_id = int(q_id) if str(q_id).isdigit() else q_id
+        supabase_client.table('feedback_questions').delete().eq('id', target_id).execute()
         return True
     except Exception as e:
         logger.error(f"Error deleting feedback question {q_id}: {e}")
     return False
 
 def save_feedback_response(user_id, question_id, rating, comment=None):
-    if not db_firestore:
+    if not supabase_initialized or not supabase_client:
         return None
     try:
-        r_id = get_next_id('feedback_responses')
         r_dict = {
-            'id': r_id,
             'user_id': user_id,
             'question_id': question_id,
             'rating': rating,
             'comment': comment,
             'created_at': datetime.utcnow().isoformat()
         }
-        db_firestore.collection('feedback_responses').document(str(r_id)).set(r_dict)
-        return FirestoreDoc(r_dict)
+        res = supabase_client.table('feedback_responses').insert(r_dict).execute()
+        if res.data and len(res.data) > 0:
+            return SupabaseDoc(res.data[0])
+        return SupabaseDoc(r_dict)
     except Exception as e:
         logger.error(f"Error saving feedback response: {e}")
         return None
 
 def get_all_feedback_responses():
-    if not db_firestore:
+    if not supabase_initialized or not supabase_client:
         return []
     try:
-        docs = db_firestore.collection('feedback_responses').get()
+        res = supabase_client.table('feedback_responses').select('*').order('created_at', desc=True).execute()
         responses = []
-        for doc in docs:
-            d = doc.to_dict()
+        for d in (res.data or []):
             u = get_user_by_id(d.get('user_id'))
             if u:
                 d['user'] = {'username': u.username, 'id': u.id}
-            q = db_firestore.collection('feedback_questions').document(str(d.get('question_id'))).get()
-            if q.exists:
-                d['question'] = q.to_dict()
-            responses.append(FirestoreDoc(d))
-        responses.sort(key=lambda r: r.created_at if isinstance(r.created_at, datetime) else datetime.min, reverse=True)
+            q_res = supabase_client.table('feedback_questions').select('*').eq('id', d.get('question_id')).limit(1).execute()
+            if q_res.data and len(q_res.data) > 0:
+                d['question'] = q_res.data[0]
+            responses.append(SupabaseDoc(d))
         return responses
     except Exception as e:
         logger.error(f"Error fetching feedback responses: {e}")
@@ -702,30 +650,32 @@ def get_site_settings():
     if _site_settings_cache and _site_settings_cache_time and (now - _site_settings_cache_time).total_seconds() < 60:
         return _site_settings_cache
 
-    default_settings = FirestoreDoc({
+    default_settings = SupabaseDoc({
+        'id': 1,
         'site_title': 'YASH WORLD',
         'site_tagline': 'Private Messaging Platform',
         'welcome_message': ''
     })
 
-    if not db_firestore:
-        return default_settings
+    if not supabase_initialized or not supabase_client:
+        raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
 
     try:
-        doc = db_firestore.collection('site_settings').document('settings').get()
-        if doc.exists:
-            _site_settings_cache = FirestoreDoc(doc.to_dict())
+        res = supabase_client.table('site_settings').select('*').eq('id', 1).limit(1).execute()
+        if res.data and len(res.data) > 0:
+            _site_settings_cache = SupabaseDoc(res.data[0])
             _site_settings_cache_time = now
             return _site_settings_cache
         else:
             s_dict = {
+                'id': 1,
                 'site_title': 'YASH WORLD',
                 'site_tagline': 'Private Messaging Platform',
                 'welcome_message': '',
                 'created_at': datetime.utcnow().isoformat()
             }
-            db_firestore.collection('site_settings').document('settings').set(s_dict)
-            _site_settings_cache = FirestoreDoc(s_dict)
+            supabase_client.table('site_settings').upsert(s_dict).execute()
+            _site_settings_cache = SupabaseDoc(s_dict)
             _site_settings_cache_time = now
             return _site_settings_cache
     except Exception as e:
@@ -735,33 +685,32 @@ def get_site_settings():
 def save_site_settings(title, tagline, welcome):
     global _site_settings_cache
     _site_settings_cache = None
-    if not db_firestore:
+    if not supabase_initialized or not supabase_client:
         return None
     try:
         s_dict = {
+            'id': 1,
             'site_title': title,
             'site_tagline': tagline,
             'welcome_message': welcome,
             'updated_at': datetime.utcnow().isoformat()
         }
-        db_firestore.collection('site_settings').document('settings').set(s_dict, merge=True)
+        supabase_client.table('site_settings').upsert(s_dict).execute()
         return get_site_settings()
     except Exception as e:
         logger.error(f"Error saving site settings: {e}")
         return None
 
 # ============================================================
-# ============================================================
-# PERMANENT FIREBASE STORAGE UPLOAD & DELETE HELPERS
+# PERMANENT SUPABASE STORAGE UPLOAD & DELETE HELPERS
 # ============================================================
 
-def upload_file_to_firebase(file, media_type='image'):
-    global firebase_bucket
+def upload_file_to_supabase(file, media_type='image'):
     if not file or not file.filename:
         return None, None
 
-    if not firebase_initialized or not firebase_bucket:
-        raise RuntimeError("Firebase Storage is not initialized. Please verify FIREBASE_SERVICE_ACCOUNT and FIREBASE_STORAGE_BUCKET environment variables.")
+    if not supabase_initialized or not supabase_client:
+        raise RuntimeError("Supabase Storage is not initialized. Please verify SUPABASE_URL and SUPABASE_KEY environment variables.")
 
     filename = secure_filename(file.filename)
     if not filename:
@@ -774,68 +723,33 @@ def upload_file_to_firebase(file, media_type='image'):
 
     unique_name = f"{media_type}s/{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{filename}"
 
-    from firebase_admin import storage
+    try:
+        content_type = file.content_type
+        if not content_type:
+            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+            content_type = f"{media_type}/{ext}" if ext else 'application/octet-stream'
 
-    # Bucket attempt candidates: primary configured bucket, plus alternate Firebase domain format (.firebasestorage.app <-> .appspot.com)
-    buckets_to_try = [firebase_bucket]
-    cur_name = firebase_bucket.name
-    if cur_name.endswith('.appspot.com'):
-        alt_name = cur_name.replace('.appspot.com', '.firebasestorage.app')
-        buckets_to_try.append(storage.bucket(alt_name))
-    elif cur_name.endswith('.firebasestorage.app'):
-        alt_name = cur_name.replace('.firebasestorage.app', '.appspot.com')
-        buckets_to_try.append(storage.bucket(alt_name))
-
-    last_error = None
-    for target_bucket in buckets_to_try:
-        try:
-            blob = target_bucket.blob(unique_name)
-            content_type = file.content_type
-            if not content_type:
-                ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-                content_type = f"{media_type}/{ext}" if ext else 'application/octet-stream'
-
-            media_token = str(uuid.uuid4())
-            blob.metadata = {'firebaseStorageDownloadTokens': media_token}
-
-            # 1. Synchronous Upload to Firebase Storage
-            blob.upload_from_string(file_bytes, content_type=content_type)
-
-            # 2. Verify Object Exists in Firebase Storage
-            if not blob.exists():
-                raise RuntimeError(f"Firebase Storage object verification failed: Blob '{unique_name}' does not exist after upload.")
-
-            # 3. Obtain Permanent Download Reference URL
-            try:
-                blob.make_public()
-                url = blob.public_url
-            except Exception:
-                encoded_name = quote(blob.name, safe='')
-                url = f"https://firebasestorage.googleapis.com/v0/b/{target_bucket.name}/o/{encoded_name}?alt=media&token={media_token}"
-
-            # Permanently update global firebase_bucket to working bucket
-            firebase_bucket = target_bucket
-            logger.info(f"✅ Firebase Storage upload verified successfully on bucket '{target_bucket.name}': {url}")
-            return url, filename
-        except Exception as e:
-            last_error = e
-            logger.warning(f"Storage upload attempt failed on bucket '{target_bucket.name}': {e}")
-
-    err_msg = str(last_error)
-    if "404" in err_msg or "does not exist" in err_msg.lower():
-        project_id = 'happybirthday-a287a'
-        if firebase_cred_dict and isinstance(firebase_cred_dict, dict):
-            project_id = firebase_cred_dict.get('project_id', project_id)
-        raise RuntimeError(
-            f"Firebase Storage bucket was not found (404)! "
-            f"Please ensure Cloud Storage is activated in Firebase Console -> Storage (https://console.firebase.google.com/project/{project_id}/storage) "
-            f"and click 'Get Started'."
+        # Upload file directly to Supabase Storage bucket
+        supabase_client.storage.from_(supabase_bucket_name).upload(
+            path=unique_name,
+            file=file_bytes,
+            file_options={"content-type": content_type, "x-upsert": "true"}
         )
-    raise RuntimeError(f"Firebase Storage upload failed: {err_msg}")
+
+        # Get Permanent Public URL
+        public_url = supabase_client.storage.from_(supabase_bucket_name).get_public_url(unique_name)
+        if not public_url:
+            public_url = f"{supabase_url.rstrip('/')}/storage/v1/object/public/{supabase_bucket_name}/{unique_name}"
+
+        logger.info(f"✅ Supabase Storage upload verified successfully on bucket '{supabase_bucket_name}': {public_url}")
+        return public_url, filename
+    except Exception as e:
+        logger.error(f"❌ Supabase Storage upload failed for {filename}: {e}")
+        raise RuntimeError(f"Supabase Storage upload failed: {str(e)}")
 
 def process_media_uploads(request_files, media_specs):
     """
-    Synchronously process multiple file uploads into Firebase Storage.
+    Synchronously process multiple file uploads into Supabase Storage.
     media_specs: list of tuples: (field_name, media_type, target_url_key, target_filename_key)
     If ANY upload fails: immediately deletes all already uploaded files in this batch (preventing orphaned files) and raises RuntimeError.
     """
@@ -846,36 +760,38 @@ def process_media_uploads(request_files, media_specs):
         for field_name, media_type, url_key, name_key in media_specs:
             if field_name in request_files and request_files[field_name] and request_files[field_name].filename:
                 file = request_files[field_name]
-                url, fname = upload_file_to_firebase(file, media_type)
+                url, fname = upload_file_to_supabase(file, media_type)
                 if url:
                     uploaded_urls_to_cleanup.append(url)
                     uploaded_records[url_key] = url
                     uploaded_records[name_key] = fname
         return uploaded_records
     except Exception as e:
-        logger.error(f"⚠️ Rolling back batch Firebase Storage uploads due to error: {e}")
+        logger.error(f"⚠️ Rolling back batch Supabase Storage uploads due to error: {e}")
         for url in uploaded_urls_to_cleanup:
             try:
-                delete_file_from_firebase(url)
+                delete_file_from_supabase(url)
             except Exception as cleanup_err:
                 logger.error(f"Error cleaning up orphaned file {url}: {cleanup_err}")
         raise e
 
-def delete_file_from_firebase(url_or_path):
-    if not firebase_initialized or not firebase_bucket or not url_or_path:
+def delete_file_from_supabase(url_or_path):
+    if not supabase_initialized or not supabase_client or not url_or_path:
         return False
     try:
-        if 'firebasestorage.googleapis.com' in url_or_path:
-            parts = url_or_path.split('/o/')
-            if len(parts) > 1:
-                blob_name = unquote(parts[1].split('?')[0])
-                blob = firebase_bucket.blob(blob_name)
-                if blob.exists():
-                    blob.delete()
-                    logger.info(f"🗑️ Deleted blob from Firebase Storage: {blob_name}")
-                    return True
+        path = str(url_or_path)
+        if '/storage/v1/object/public/' in path:
+            path = path.split('/storage/v1/object/public/' + supabase_bucket_name + '/')[-1]
+        elif path.startswith('http://') or path.startswith('https://'):
+            parsed = urlparse(path)
+            path = parsed.path.split(f'/{supabase_bucket_name}/')[-1]
+            path = unquote(path)
+
+        supabase_client.storage.from_(supabase_bucket_name).remove([path])
+        logger.info(f"🗑️ Deleted file from Supabase Storage: {path}")
+        return True
     except Exception as e:
-        logger.warning(f"Error deleting file from Firebase Storage: {e}")
+        logger.warning(f"Error deleting file from Supabase Storage: {e}")
     return False
 
 # ============================================================
@@ -926,101 +842,66 @@ def internal_server_error(e):
     <html>
     <head>
         <title>Application Error Diagnostic</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 24px; line-height: 1.6; }}
+            .card {{ background: #1e293b; border-radius: 12px; padding: 24px; border: 1px solid #334155; max-width: 900px; margin: 0 auto; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }}
+            h2 {{ color: #f43f5e; margin-top: 0; display: flex; align-items: center; gap: 8px; }}
+            pre {{ background: #090d16; color: #38bdf8; padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 13px; border: 1px solid #1e293b; white-space: pre-wrap; }}
+            .btn {{ display: inline-block; background: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 16px; margin-right: 12px; }}
+        </style>
     </head>
-    <body style="font-family: system-ui, -apple-system, sans-serif; padding: 25px; background: #0f172a; color: #f8fafc; margin: 0;">
-        <div style="max-width: 800px; margin: 20px auto; background: #1e293b; padding: 30px; border-radius: 20px; border-left: 6px solid #ef4444; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-            <h2 style="color: #f87171; margin-top: 0; display: flex; align-items: center; gap: 10px;">⚠️ Application Error Diagnostic</h2>
-            <p style="font-size: 16px; color: #cbd5e1;">An exception occurred during request processing:</p>
-            <div style="background: #090d16; padding: 15px; border-radius: 12px; margin: 15px 0; color: #fca5a5; font-weight: bold; font-family: monospace;">{html.escape(str(e))}</div>
-            <details open style="margin-top: 20px;">
-                <summary style="cursor: pointer; font-weight: bold; color: #38bdf8; font-size: 15px;">🔍 Full Exception Traceback:</summary>
-                <pre style="background: #090d16; padding: 18px; border-radius: 12px; overflow-x: auto; color: #fca5a5; font-size: 13px; line-height: 1.5; margin-top: 10px;">{html.escape(tb_str)}</pre>
-            </details>
-            <div style="margin-top: 25px; display: flex; gap: 15px;">
-                <a href="/dashboard" style="display: inline-block; padding: 12px 24px; background: #3b82f6; color: white; border-radius: 12px; text-decoration: none; font-weight: bold;">← Back to Dashboard</a>
-                <a href="/login" style="display: inline-block; padding: 12px 24px; background: #475569; color: white; border-radius: 12px; text-decoration: none; font-weight: bold;">🔑 Login Page</a>
+    <body>
+        <div class="card">
+            <h2>⚠️ Application Error Diagnostic</h2>
+            <p>An exception occurred during request processing:</p>
+            <pre>{html.escape(str(e))}</pre>
+            <h3>🔍 Full Exception Traceback:</h3>
+            <pre>{html.escape(tb_str)}</pre>
+            <div>
+                <a href="{url_for('dashboard')}" class="btn">← Back to Dashboard</a>
+                <a href="{url_for('login')}" class="btn" style="background: #475569;">🔑 Login Page</a>
             </div>
         </div>
     </body>
     </html>
     """, 500
 
-@app.template_filter('media_url')
-def media_url_filter(data, media_type='image'):
-    return get_media_url(data, media_type)
-
-ALLOWED_IMAGES = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-ALLOWED_VIDEOS = {'mp4', 'webm', 'mov', 'avi', 'mkv'}
-ALLOWED_AUDIO = {'mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'}
-
-def get_file_extension(filename):
-    return filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-
-def is_allowed_image(filename):
-    return get_file_extension(filename) in ALLOWED_IMAGES
-
-def is_allowed_video(filename):
-    return get_file_extension(filename) in ALLOWED_VIDEOS
-
-def is_allowed_audio(filename):
-    return get_file_extension(filename) in ALLOWED_AUDIO
-
 # ============================================================
-# ROUTES - AUTHENTICATION
+# APPLICATION ROUTES
 # ============================================================
 
 @app.route('/')
 def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+    return render_template('index.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user and getattr(current_user, 'is_authenticated', False):
+    if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        try:
-            username = (request.form.get('username') or '').strip()
-            password = (request.form.get('password') or '').strip()
-            remember = bool(request.form.get('remember', False))
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        user = get_user_by_username(username)
+        if user and user.check_password(password):
+            login_user(user, remember=True)
+            save_user({'id': user.id, 'last_login': datetime.utcnow().isoformat()})
+            flash(f'Welcome back, {user.username}!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username or password.', 'danger')
             
-            user = get_user_by_username(username)
-            
-            if user and user.check_password(password):
-                login_user(user, remember=remember)
-                try:
-                    save_user({
-                        'id': user.id,
-                        'username': user.username,
-                        'last_login': datetime.utcnow().isoformat()
-                    })
-                except Exception as se:
-                    logger.warning(f"Note updating last_login: {se}")
-                return redirect(url_for('dashboard'))
-            else:
-                flash('Invalid username or password', 'danger')
-        except Exception as e:
-            logger.error(f"Error during login attempt: {e}")
-            flash('An error occurred during login. Please try again.', 'danger')
-    
     return render_template('login.html')
 
-@app.route('/logout', methods=['GET', 'POST'])
+@app.route('/logout')
+@login_required
 def logout():
-    try:
-        logout_user()
-    except Exception as e:
-        logger.error(f"Error during logout: {e}")
-    session.clear()
+    logout_user()
     flash('You have been logged out.', 'info')
-    return redirect(url_for('login'))
-
-# ============================================================
-# ROUTES - DASHBOARD
-# ============================================================
+    return redirect(url_for('index'))
 
 @app.route('/dashboard')
 @login_required
@@ -1028,57 +909,37 @@ def dashboard():
     try:
         all_questions = get_all_questions()
         total_questions = len(all_questions)
+        
         all_replies = get_all_replies()
         total_replies_count = len(all_replies)
         
-        is_admin = bool(getattr(current_user, 'is_admin', False))
-        is_friend = bool(getattr(current_user, 'is_friend', False))
+        current_index = session.get('current_question_index', 0)
+        if total_questions == 0:
+            current_index = 0
+        else:
+            current_index = max(0, min(current_index, total_questions - 1))
+            
+        session['current_question_index'] = current_index
         
-        typing_text = None
+        current_question = all_questions[current_index] if total_questions > 0 else None
+        
+        is_admin = bool(current_user.is_admin)
+        is_friend = bool(current_user.is_friend)
+        
         show_typing = False
         show_birthday_intro = False
+        typing_text = None
         
-        user_id_str = str(getattr(current_user, 'id', 'user'))
-        
-        if is_friend and not is_admin:
+        if is_friend:
             typing_text = get_active_typing_text()
-            seen_birthday = session.get('seen_birthday_' + user_id_str, False)
-            if not seen_birthday:
-                show_birthday_intro = True
-            
-            seen_typing = session.get('seen_typing_' + user_id_str, False)
-            if typing_text and not seen_typing:
+            if typing_text and not session.get('seen_typing_' + str(current_user.id)):
                 show_typing = True
-            else:
-                show_typing = False
-        
-        current_index = session.get('current_question_index', 0)
-        
-        if total_questions == 0:
-            return render_template('dashboard.html', 
-                questions=[],
-                current_question=None,
-                current_index=0,
-                total_questions=0,
-                total_replies_count=total_replies_count,
-                is_admin=is_admin,
-                is_friend=is_friend,
-                current_user=current_user,
-                feedback_questions=[],
-                typing_text=typing_text,
-                show_typing=show_typing,
-                show_birthday_intro=show_birthday_intro
-            )
-        
-        if current_index >= total_questions:
-            current_index = 0
-            session['current_question_index'] = 0
-        
-        current_question = all_questions[current_index] if current_index < total_questions else None
+            if not session.get('seen_birthday_' + str(current_user.id)):
+                show_birthday_intro = True
         
         replies = []
         if current_question:
-            q_id_str = str(getattr(current_question, 'id', ''))
+            q_id_str = str(current_question.id)
             replies = [r for r in all_replies if str(getattr(r, 'question_id', '')) == q_id_str]
         
         feedback_questions = []
@@ -1102,21 +963,7 @@ def dashboard():
         )
     except Exception as e:
         logger.error(f"Dashboard error: {e}", exc_info=True)
-        return render_template('dashboard.html', 
-            questions=[],
-            current_question=None,
-            current_index=0,
-            total_questions=0,
-            total_replies_count=0,
-            replies=[],
-            is_admin=bool(getattr(current_user, 'is_admin', False)),
-            is_friend=bool(getattr(current_user, 'is_friend', False)),
-            current_user=current_user,
-            feedback_questions=[],
-            typing_text=None,
-            show_typing=False,
-            show_birthday_intro=False
-        )
+        raise RuntimeError(f"Dashboard query error: {e}")
 
 @app.route('/navigate-question', methods=['POST'])
 @login_required
@@ -1181,7 +1028,7 @@ def ask_question():
             uploaded_media = process_media_uploads(request.files, media_specs)
             q_data.update(uploaded_media)
         except Exception as e:
-            flash(f"Firebase Storage upload failed: {str(e)}", 'danger')
+            flash(f"Supabase Storage upload failed: {str(e)}", 'danger')
             return redirect(url_for('ask_question'))
         
         image_url = request.form.get('image_url', '').strip()
@@ -1223,12 +1070,12 @@ def ask_question():
         try:
             saved_doc = save_question(q_data)
             if not saved_doc:
-                raise RuntimeError("Firestore question document write failed.")
+                raise RuntimeError("Supabase PostgreSQL question document write failed.")
         except Exception as fe:
             for u_key in ('image_data', 'video_data', 'audio_data', 'answer_image_data', 'answer_video_data', 'answer_audio_data'):
                 if q_data.get(u_key):
-                    delete_file_from_firebase(q_data[u_key])
-            flash(f"Firestore save failed: {str(fe)}", 'danger')
+                    delete_file_from_supabase(q_data[u_key])
+            flash(f"Supabase PostgreSQL save failed: {str(fe)}", 'danger')
             return redirect(url_for('ask_question'))
         
         all_q = get_all_questions()
@@ -1276,7 +1123,7 @@ def reply_question(question_id):
             uploaded_media = process_media_uploads(request.files, media_specs)
             r_data.update(uploaded_media)
         except Exception as e:
-            flash(f"Firebase Storage upload failed: {str(e)}", 'danger')
+            flash(f"Supabase Storage upload failed: {str(e)}", 'danger')
             return redirect(url_for('reply_question', question_id=question_id))
         
         image_url = request.form.get('image_url', '').strip()
@@ -1297,13 +1144,13 @@ def reply_question(question_id):
         try:
             saved_reply = save_reply(r_data)
             if not saved_reply:
-                raise RuntimeError("Firestore reply document write failed.")
+                raise RuntimeError("Supabase PostgreSQL reply write failed.")
             save_question({'id': int(question_id), 'is_answered': True})
         except Exception as fe:
             for u_key in ('image_data', 'video_data', 'audio_data'):
                 if r_data.get(u_key):
-                    delete_file_from_firebase(r_data[u_key])
-            flash(f"Firestore reply save failed: {str(fe)}", 'danger')
+                    delete_file_from_supabase(r_data[u_key])
+            flash(f"Supabase PostgreSQL reply save failed: {str(fe)}", 'danger')
             return redirect(url_for('reply_question', question_id=question_id))
         
         flash('Reply sent successfully! Your response has been sent to the Admin Dashboard.', 'success')
@@ -1364,10 +1211,10 @@ def edit_question(question_id):
             uploaded_media = process_media_uploads(request.files, media_specs)
             for k, v in uploaded_media.items():
                 if k.endswith('_data') and q_dict.get(k):
-                    delete_file_from_firebase(q_dict.get(k))
+                    delete_file_from_supabase(q_dict.get(k))
             q_dict.update(uploaded_media)
         except Exception as e:
-            flash(f"Firebase Storage upload failed: {str(e)}", 'danger')
+            flash(f"Supabase Storage upload failed: {str(e)}", 'danger')
             return redirect(url_for('edit_question', question_id=question_id))
 
         image_url = request.form.get('image_url', '').strip()
@@ -1405,17 +1252,17 @@ def delete_question_media(question_id):
     
     if media_type == 'image':
         if q_dict.get('image_data'):
-            delete_file_from_firebase(q_dict.get('image_data'))
+            delete_file_from_supabase(q_dict.get('image_data'))
         q_dict['image_data'] = None
         q_dict['image_filename'] = None
     elif media_type == 'video':
         if q_dict.get('video_data'):
-            delete_file_from_firebase(q_dict.get('video_data'))
+            delete_file_from_supabase(q_dict.get('video_data'))
         q_dict['video_data'] = None
         q_dict['video_filename'] = None
     elif media_type == 'audio':
         if q_dict.get('audio_data'):
-            delete_file_from_firebase(q_dict.get('audio_data'))
+            delete_file_from_supabase(q_dict.get('audio_data'))
         q_dict['audio_data'] = None
         q_dict['audio_filename'] = None
         
@@ -1626,8 +1473,8 @@ def admin_settings():
 # SEEDING & DEFAULTS INITIALIZATION
 # ============================================================
 
-def seed_firestore_defaults():
-    if not db_firestore:
+def seed_supabase_defaults():
+    if not supabase_initialized or not supabase_client:
         return
     try:
         # 1. Admin User
@@ -1635,28 +1482,26 @@ def seed_firestore_defaults():
         admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
         if not get_user_by_username(admin_username):
             save_user({
-                'id': 1,
                 'username': admin_username,
                 'password_hash': generate_password_hash(admin_password),
                 'is_admin': True,
                 'is_friend': True,
                 'created_at': datetime.utcnow().isoformat()
             })
-            logger.info(f"✅ Created default Firestore Admin user: {admin_username}")
+            logger.info(f"✅ Created default Supabase Admin user: {admin_username}")
 
         # 2. Friend User
         friend_username = os.environ.get('FRIEND_USERNAME', 'Glory')
         friend_password = os.environ.get('FRIEND_PASSWORD', 'lory')
         if not get_user_by_username(friend_username):
             save_user({
-                'id': 2,
                 'username': friend_username,
                 'password_hash': generate_password_hash(friend_password),
                 'is_admin': False,
                 'is_friend': True,
                 'created_at': datetime.utcnow().isoformat()
             })
-            logger.info(f"✅ Created default Firestore Friend user: {friend_username}")
+            logger.info(f"✅ Created default Supabase Friend user: {friend_username}")
 
         # 3. Default Settings
         get_site_settings()
@@ -1673,23 +1518,23 @@ def seed_firestore_defaults():
             ]
             for q in default_qs:
                 save_feedback_question(q)
-            logger.info("✅ Seeded default Firestore feedback questions")
+            logger.info("✅ Seeded default Supabase feedback questions")
 
         # 5. Default Typing Text Message
         if not get_active_typing_text():
             birthday_msg = "Happy Birthday 🎂❤️ Wishing you happiness, peace, and success always. I hope you’re happy with the new people in your life and make beautiful memories with them. Take care and stay happy. 🤍"
             save_typing_text(birthday_msg, is_active=True)
-            logger.info("✅ Seeded default Firestore typing text message")
+            logger.info("✅ Seeded default Supabase typing text message")
 
     except Exception as e:
-        logger.error(f"Error seeding Firestore defaults: {e}")
+        logger.error(f"Error seeding Supabase defaults: {e}")
 
 # Seed defaults asynchronously in a background thread to ensure instant Gunicorn boot
 import threading
 try:
-    threading.Thread(target=seed_firestore_defaults, daemon=True).start()
+    threading.Thread(target=seed_supabase_defaults, daemon=True).start()
 except Exception as e:
-    logger.error(f"Error in seed_firestore_defaults background launch: {e}")
+    logger.error(f"Error in seed_supabase_defaults background launch: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

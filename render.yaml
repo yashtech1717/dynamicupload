@@ -10,5 +10,9 @@ services:
         value: 3.11.8
       - key: SECRET_KEY
         generateValue: true
-      - key: FIREBASE_STORAGE_BUCKET
-        value: happybirthday-a287a.appspot.com
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: media

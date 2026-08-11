@@ -4,5 +4,5 @@ Werkzeug==2.3.8
 gunicorn==21.2.0
 python-dotenv==1.0.0
 setuptools==68.2.2
-firebase-admin>=6.2.0
-google-cloud-storage>=2.10.0
+supabase>=2.10.0
+requests>=2.30.0
