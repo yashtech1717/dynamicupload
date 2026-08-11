@@ -1336,16 +1336,6 @@ def init_db():
                 db.session.commit()
                 logger.info("✅ Default feedback questions created")
             
-            # Create default typing text if none exists
-            if TypingText.query.count() == 0:
-                default_typing = TypingText(
-                    text="Happy Birthday 🎂❤️ Wishing you lots of happiness, peace, and success in life. Take care and stay happy always. And from now on, just forget about me. 🙂",
-                    is_active=True
-                )
-                db.session.add(default_typing)
-                db.session.commit()
-                logger.info("✅ Default typing text created")
-            
             # Auto-migrate any existing player.cloudinary.com embed links in DB
             try:
                 questions = Question.query.all()

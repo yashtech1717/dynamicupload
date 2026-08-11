@@ -276,8 +276,8 @@
         
         <!-- Inset Message Box with Playfair Display -->
         <div style="padding: 24px 28px; border-radius: 20px; background: var(--bg-primary); box-shadow: var(--inset-shadow); margin: 22px 0; border-left: 4px solid var(--accent-green);">
-            <p style="font-family: 'Playfair Display', Georgia, serif; font-size: 20px; line-height: 1.8; color: var(--text-primary); margin: 0; font-weight: 600; font-style: italic;">
-                "Happy Birthday 🎂❤️ Wishing you lots of happiness, peace, and success in life. Take care and stay happy always. And from now on, just forget about me. 🙂"
+            <p style="font-family: 'Playfair Display', Georgia, serif; font-size: 21px; line-height: 1.8; color: var(--text-primary); margin: 0; font-weight: 600; font-style: italic;">
+                "Wishing you an extraordinary day filled with infinite joy, laughter, and unforgettable moments! May this year bring you endless happiness, success, and prosperity! 🌟"
             </p>
         </div>
 
@@ -579,12 +579,18 @@ function replayBirthdayIntro() {
 
 function hideTyping() {
     const section = document.getElementById('typingSection');
+    const questionSection = document.getElementById('mainQuestionSection');
+
     if (section) {
         section.style.transition = 'all 0.4s ease';
         section.style.opacity = '0';
         section.style.transform = 'translateY(-20px) scale(0.95)';
         setTimeout(() => {
             section.style.display = 'none';
+            if (questionSection) {
+                questionSection.style.display = 'block';
+                questionSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         }, 400);
 
         fetch('{{ url_for("seen_typing") }}', {
@@ -713,6 +719,7 @@ function hideTyping() {
 <!-- ============================================ -->
 <!-- QUESTIONS - ONE BY ONE -->
 <!-- ============================================ -->
+<div id="mainQuestionSection" {% if current_user.is_friend and not current_user.is_admin and show_typing and typing_text %}style="display: none; animation: slideDown 0.5s ease;"{% else %}style="animation: slideDown 0.5s ease;"{% endif %}>
 {% if current_question %}
 
 <!-- Progress Bar -->
@@ -987,6 +994,7 @@ function hideTyping() {
     <p>{% if current_user.is_admin %}Ask your first question!{% else %}Wait for admin to ask a question.{% endif %}</p>
 </div>
 {% endif %}
+</div>
 
 <!-- ============================================ -->
 <!-- JAVASCRIPT -->
