@@ -287,11 +287,13 @@ def get_all_questions():
     if not db_firestore:
         return []
     try:
+        users_map = {str(u.id): u for u in get_all_users()}
         docs = db_firestore.collection('questions').get()
         questions = []
         for doc in docs:
             d = doc.to_dict()
-            asker = get_user_by_id(d.get('user_id'))
+            u_id = str(d.get('user_id'))
+            asker = users_map.get(u_id)
             if asker:
                 d['asker'] = {'username': asker.username, 'id': asker.id}
             questions.append(FirestoreDoc(d))
@@ -363,17 +365,15 @@ def get_replies_for_question(question_id):
     if not db_firestore or not question_id:
         return []
     try:
+        users_map = {str(u.id): u for u in get_all_users()}
         docs = db_firestore.collection('replies').where('question_id', '==', int(question_id)).get()
         replies = []
         for doc in docs:
             d = doc.to_dict()
-            replier = get_user_by_id(d.get('user_id'))
+            u_id = str(d.get('user_id'))
+            replier = users_map.get(u_id)
             if replier:
                 d['replier'] = {'username': replier.username, 'id': replier.id}
-            
-            q = get_question_by_id(question_id)
-            if q:
-                d['question'] = q.to_dict()
             replies.append(FirestoreDoc(d))
         
         replies.sort(key=lambda r: r.created_at if isinstance(r.created_at, datetime) else datetime.min)
@@ -386,19 +386,23 @@ def get_all_replies():
     if not db_firestore:
         return []
     try:
+        users_map = {str(u.id): u for u in get_all_users()}
         docs = db_firestore.collection('replies').get()
+        
+        q_docs = db_firestore.collection('questions').get()
+        q_map = {str(qd.to_dict().get('id')): qd.to_dict() for qd in q_docs}
+
         replies = []
         for doc in docs:
             d = doc.to_dict()
-            replier = get_user_by_id(d.get('user_id'))
+            u_id = str(d.get('user_id'))
+            replier = users_map.get(u_id)
             if replier:
                 d['replier'] = {'username': replier.username, 'id': replier.id}
             
-            q_id = d.get('question_id')
-            if q_id:
-                q = get_question_by_id(q_id)
-                if q:
-                    d['question'] = q.to_dict()
+            q_id = str(d.get('question_id'))
+            if q_id in q_map:
+                d['question'] = q_map[q_id]
             replies.append(FirestoreDoc(d))
             
         replies.sort(key=lambda r: r.created_at if isinstance(r.created_at, datetime) else datetime.min)
@@ -638,13 +642,30 @@ def get_all_feedback_responses():
         logger.error(f"Error fetching feedback responses: {e}")
         return []
 
+_site_settings_cache = None
+_site_settings_cache_time = None
+
 def get_site_settings():
+    global _site_settings_cache, _site_settings_cache_time
+    now = datetime.utcnow()
+    if _site_settings_cache and _site_settings_cache_time and (now - _site_settings_cache_time).total_seconds() < 60:
+        return _site_settings_cache
+
+    default_settings = FirestoreDoc({
+        'site_title': 'YASH WORLD',
+        'site_tagline': 'Private Messaging Platform',
+        'welcome_message': ''
+    })
+
     if not db_firestore:
-        return FirestoreDoc({'site_title': 'YASH WORLD', 'site_tagline': 'Private Messaging Platform'})
+        return default_settings
+
     try:
         doc = db_firestore.collection('site_settings').document('settings').get()
         if doc.exists:
-            return FirestoreDoc(doc.to_dict())
+            _site_settings_cache = FirestoreDoc(doc.to_dict())
+            _site_settings_cache_time = now
+            return _site_settings_cache
         else:
             s_dict = {
                 'site_title': 'YASH WORLD',
@@ -653,12 +674,16 @@ def get_site_settings():
                 'created_at': datetime.utcnow().isoformat()
             }
             db_firestore.collection('site_settings').document('settings').set(s_dict)
-            return FirestoreDoc(s_dict)
+            _site_settings_cache = FirestoreDoc(s_dict)
+            _site_settings_cache_time = now
+            return _site_settings_cache
     except Exception as e:
         logger.error(f"Error fetching site settings: {e}")
-        return FirestoreDoc({'site_title': 'YASH WORLD', 'site_tagline': 'Private Messaging Platform'})
+        return default_settings
 
 def save_site_settings(title, tagline, welcome):
+    global _site_settings_cache
+    _site_settings_cache = None
     if not db_firestore:
         return None
     try:
@@ -811,32 +836,42 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated:
+    if current_user and getattr(current_user, 'is_authenticated', False):
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        remember = request.form.get('remember', False)
-        
-        user = get_user_by_username(username)
-        
-        if user and user.check_password(password):
-            login_user(user, remember=remember)
-            save_user({
-                'id': user.id,
-                'username': user.username,
-                'last_login': datetime.utcnow().isoformat()
-            })
-            return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid username or password', 'danger')
+        try:
+            username = (request.form.get('username') or '').strip()
+            password = (request.form.get('password') or '').strip()
+            remember = bool(request.form.get('remember', False))
+            
+            user = get_user_by_username(username)
+            
+            if user and user.check_password(password):
+                login_user(user, remember=remember)
+                try:
+                    save_user({
+                        'id': user.id,
+                        'username': user.username,
+                        'last_login': datetime.utcnow().isoformat()
+                    })
+                except Exception as se:
+                    logger.warning(f"Note updating last_login: {se}")
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Invalid username or password', 'danger')
+        except Exception as e:
+            logger.error(f"Error during login attempt: {e}")
+            flash('An error occurred during login. Please try again.', 'danger')
     
     return render_template('login.html')
 
 @app.route('/logout', methods=['GET', 'POST'])
 def logout():
-    logout_user()
+    try:
+        logout_user()
+    except Exception as e:
+        logger.error(f"Error during logout: {e}")
     session.clear()
     flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
@@ -848,74 +883,98 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    all_questions = get_all_questions()
-    total_questions = len(all_questions)
-    all_replies = get_all_replies()
-    total_replies_count = len(all_replies)
-    
-    is_admin = current_user.is_admin
-    is_friend = current_user.is_friend
-    
-    typing_text = None
-    show_typing = False
-    show_birthday_intro = False
-    
-    if is_friend and not is_admin:
-        typing_text = get_active_typing_text()
-        seen_birthday = session.get('seen_birthday_' + str(current_user.id), False)
-        if not seen_birthday:
-            show_birthday_intro = True
+    try:
+        all_questions = get_all_questions()
+        total_questions = len(all_questions)
+        all_replies = get_all_replies()
+        total_replies_count = len(all_replies)
         
-        seen_typing = session.get('seen_typing_' + str(current_user.id), False)
-        if typing_text and not seen_typing:
-            show_typing = True
-        else:
-            show_typing = False
-    
-    current_index = session.get('current_question_index', 0)
-    
-    if total_questions == 0:
+        is_admin = bool(getattr(current_user, 'is_admin', False))
+        is_friend = bool(getattr(current_user, 'is_friend', False))
+        
+        typing_text = None
+        show_typing = False
+        show_birthday_intro = False
+        
+        user_id_str = str(getattr(current_user, 'id', 'user'))
+        
+        if is_friend and not is_admin:
+            typing_text = get_active_typing_text()
+            seen_birthday = session.get('seen_birthday_' + user_id_str, False)
+            if not seen_birthday:
+                show_birthday_intro = True
+            
+            seen_typing = session.get('seen_typing_' + user_id_str, False)
+            if typing_text and not seen_typing:
+                show_typing = True
+            else:
+                show_typing = False
+        
+        current_index = session.get('current_question_index', 0)
+        
+        if total_questions == 0:
+            return render_template('dashboard.html', 
+                questions=[],
+                current_question=None,
+                current_index=0,
+                total_questions=0,
+                total_replies_count=total_replies_count,
+                is_admin=is_admin,
+                is_friend=is_friend,
+                current_user=current_user,
+                feedback_questions=[],
+                typing_text=typing_text,
+                show_typing=show_typing,
+                show_birthday_intro=show_birthday_intro
+            )
+        
+        if current_index >= total_questions:
+            current_index = 0
+            session['current_question_index'] = 0
+        
+        current_question = all_questions[current_index] if current_index < total_questions else None
+        
+        replies = []
+        if current_question:
+            q_id_str = str(getattr(current_question, 'id', ''))
+            replies = [r for r in all_replies if str(getattr(r, 'question_id', '')) == q_id_str]
+        
+        feedback_questions = []
+        if is_friend:
+            feedback_questions = get_active_feedback_questions()
+        
+        return render_template('dashboard.html', 
+            questions=[current_question] if current_question else [],
+            current_question=current_question,
+            current_index=current_index,
+            total_questions=total_questions,
+            total_replies_count=total_replies_count,
+            replies=replies,
+            is_admin=is_admin,
+            is_friend=is_friend,
+            current_user=current_user,
+            feedback_questions=feedback_questions,
+            typing_text=typing_text,
+            show_typing=show_typing,
+            show_birthday_intro=show_birthday_intro
+        )
+    except Exception as e:
+        logger.error(f"Dashboard error: {e}", exc_info=True)
         return render_template('dashboard.html', 
             questions=[],
             current_question=None,
             current_index=0,
             total_questions=0,
-            total_replies_count=total_replies_count,
-            is_admin=is_admin,
-            is_friend=is_friend,
+            total_replies_count=0,
+            replies=[],
+            is_admin=bool(getattr(current_user, 'is_admin', False)),
+            is_friend=bool(getattr(current_user, 'is_friend', False)),
             current_user=current_user,
             feedback_questions=[],
-            typing_text=typing_text,
-            show_typing=show_typing,
-            show_birthday_intro=show_birthday_intro
+            typing_text=None,
+            show_typing=False,
+            show_birthday_intro=False
         )
-    
-    if current_index >= total_questions:
-        current_index = 0
-        session['current_question_index'] = 0
-    
-    current_question = all_questions[current_index] if current_index < total_questions else None
-    replies = get_replies_for_question(current_question.id) if current_question else []
-    
-    feedback_questions = []
-    if is_friend:
-        feedback_questions = get_active_feedback_questions()
-    
-    return render_template('dashboard.html', 
-        questions=[current_question] if current_question else [],
-        current_question=current_question,
-        current_index=current_index,
-        total_questions=total_questions,
-        total_replies_count=total_replies_count,
-        replies=replies,
-        is_admin=is_admin,
-        is_friend=is_friend,
-        current_user=current_user,
-        feedback_questions=feedback_questions,
-        typing_text=typing_text,
-        show_typing=show_typing,
-        show_birthday_intro=show_birthday_intro
-    )
 
 @app.route('/navigate-question', methods=['POST'])
 @login_required
