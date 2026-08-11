@@ -711,35 +711,68 @@ def upload_file_to_firebase(file, media_type='video'):
     if not filename:
         filename = f"{media_type}_{uuid.uuid4().hex[:6]}"
 
-    if not firebase_initialized or not firebase_bucket:
-        raise RuntimeError("Firebase Storage is not initialized. Please verify FIREBASE_SERVICE_ACCOUNT and FIREBASE_STORAGE_BUCKET environment variables.")
+    if not firebase_initialized:
+        raise RuntimeError("Firebase Storage is not initialized. Please verify FIREBASE_SERVICE_ACCOUNT environment variable.")
 
-    try:
-        unique_name = f"{media_type}s/{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{filename}"
-        blob = firebase_bucket.blob(unique_name)
-        file.seek(0)
-        content_type = file.content_type
-        if not content_type:
-            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-            content_type = f"{media_type}/{ext}" if ext else 'application/octet-stream'
+    from firebase_admin import storage
 
-        media_token = str(uuid.uuid4())
-        blob.metadata = {'firebaseStorageDownloadTokens': media_token}
+    bucket_candidates = []
+    env_bucket = os.environ.get('FIREBASE_STORAGE_BUCKET', '').strip()
+    if env_bucket:
+        bucket_candidates.append(env_bucket)
 
-        blob.upload_from_file(file, content_type=content_type)
+    project_id = 'happybirthday-a287a'
+    if firebase_bucket and hasattr(firebase_bucket, 'name') and firebase_bucket.name:
+        if firebase_bucket.name not in bucket_candidates:
+            bucket_candidates.append(firebase_bucket.name)
 
+    bucket_candidates.extend([
+        f"{project_id}.firebasestorage.app",
+        f"{project_id}.appspot.com",
+        project_id
+    ])
+
+    seen = set()
+    unique_buckets = []
+    for b in bucket_candidates:
+        if b and b not in seen:
+            seen.add(b)
+            unique_buckets.append(b)
+
+    file.seek(0)
+    file_bytes = file.read()
+
+    last_error = None
+    for b_name in unique_buckets:
         try:
-            blob.make_public()
-            url = blob.public_url
-        except Exception:
-            encoded_name = quote(blob.name, safe='')
-            url = f"https://firebasestorage.googleapis.com/v0/b/{firebase_bucket.name}/o/{encoded_name}?alt=media&token={media_token}"
+            target_bucket = storage.bucket(b_name)
+            unique_name = f"{media_type}s/{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{filename}"
+            blob = target_bucket.blob(unique_name)
 
-        logger.info(f"✅ File uploaded synchronously to Firebase Storage: {url}")
-        return url, filename
-    except Exception as e:
-        logger.error(f"❌ Firebase Storage upload failed: {e}")
-        raise e
+            content_type = file.content_type
+            if not content_type:
+                ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+                content_type = f"{media_type}/{ext}" if ext else 'application/octet-stream'
+
+            media_token = str(uuid.uuid4())
+            blob.metadata = {'firebaseStorageDownloadTokens': media_token}
+
+            blob.upload_from_string(file_bytes, content_type=content_type)
+
+            try:
+                blob.make_public()
+                url = blob.public_url
+            except Exception:
+                encoded_name = quote(blob.name, safe='')
+                url = f"https://firebasestorage.googleapis.com/v0/b/{target_bucket.name}/o/{encoded_name}?alt=media&token={media_token}"
+
+            logger.info(f"✅ File uploaded successfully to Firebase Storage bucket '{b_name}': {url}")
+            return url, filename
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Failed upload attempt to bucket '{b_name}': {e}")
+
+    raise RuntimeError(f"Firebase Storage upload failed: {last_error}")
 
 def delete_file_from_firebase(url_or_path):
     if not firebase_initialized or not firebase_bucket or not url_or_path:
