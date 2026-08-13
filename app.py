@@ -927,15 +927,12 @@ def dashboard():
         is_friend = bool(current_user.is_friend)
         
         show_typing = False
-        show_birthday_intro = False
         typing_text = None
         
         if is_friend:
             typing_text = get_active_typing_text()
             if typing_text and not session.get('seen_typing_' + str(current_user.id)):
                 show_typing = True
-            if not session.get('seen_birthday_' + str(current_user.id)):
-                show_birthday_intro = True
         
         replies = []
         if current_question:
@@ -958,8 +955,7 @@ def dashboard():
             current_user=current_user,
             feedback_questions=feedback_questions,
             typing_text=typing_text,
-            show_typing=show_typing,
-            show_birthday_intro=show_birthday_intro
+            show_typing=show_typing
         )
     except Exception as e:
         logger.error(f"Dashboard error: {e}", exc_info=True)
@@ -984,13 +980,6 @@ def navigate_question():
 @login_required
 def seen_typing():
     session['seen_typing_' + str(current_user.id)] = True
-    session.modified = True
-    return jsonify({'success': True})
-
-@app.route('/seen-birthday', methods=['POST'])
-@login_required
-def seen_birthday():
-    session['seen_birthday_' + str(current_user.id)] = True
     session.modified = True
     return jsonify({'success': True})
 
