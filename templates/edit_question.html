@@ -20,18 +20,16 @@
         </div>
 
         <div>
-            <label style="font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                <span>🎯 Question Position / Order</span>
-                <span style="font-size: 11px; background: #f39c12; color: white; padding: 2px 8px; border-radius: 10px; font-weight: 700;">Currently Position {{ current_pos or 1 }}</span>
+            <label for="edit_position_input" style="font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <span>🎯 Enter Position Number</span>
+                <span style="font-size: 11px; background: #f39c12; color: white; padding: 2px 10px; border-radius: 12px; font-weight: 700;">Currently Position {{ current_pos or 1 }}</span>
             </label>
-            <select name="question_position" style="width: 100%; padding: 14px 18px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 15px; color: var(--text-primary); outline: none; cursor: pointer; font-family: inherit;">
-                <option value="first" {% if current_pos == 1 %}selected{% endif %}>🥇 1st Position — Beginning of Stack</option>
-                {% set max_pos = (total_questions + 1) if (total_questions and total_questions > 5) else 10 %}
-                {% for pos in range(2, max_pos + 1) %}
-                    <option value="{{ pos }}" {% if current_pos == pos %}selected{% endif %}>Position {{ pos }} ({{ pos }}{% if pos == 2 %}nd{% elif pos == 3 %}rd{% else %}th{% endif %})</option>
-                {% endfor %}
-                <option value="last" {% if current_pos == total_questions %}selected{% endif %}>🏁 Last Position — End of Stack</option>
-            </select>
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <input type="text" id="edit_position_input" name="question_position" value="{{ current_pos or 1 }}" placeholder="e.g. 1 for 1st, 2 for 2nd..." style="flex: 1; min-width: 150px; padding: 14px 18px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 15px; color: var(--text-primary); outline: none; font-weight: 700; font-family: inherit;">
+                <button type="button" onclick="document.getElementById('edit_position_input').value='1'" class="btn btn-secondary btn-sm" style="padding: 12px 18px; border-radius: 14px;">🥇 1st (Beginning)</button>
+                <button type="button" onclick="document.getElementById('edit_position_input').value='last'" class="btn btn-secondary btn-sm" style="padding: 12px 18px; border-radius: 14px;">🏁 Last (End)</button>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">Type position number (e.g. 1 for 1st, 2 for 2nd, 3 for 3rd...) or click 1st / Last button.</div>
         </div>
         
         <div>

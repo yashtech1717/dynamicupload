@@ -63,28 +63,28 @@
     .star-rating {
         display: flex;
         flex-direction: row-reverse;
-        gap: 10px;
+        gap: 12px;
         justify-content: center;
-        padding: 10px;
+        padding: 12px;
     }
     .star-rating input { display: none; }
     .star-rating label {
-        font-size: 40px;
-        color: #e0e0e0;
+        font-size: 38px;
+        color: #e2e8f0;
         cursor: pointer;
         transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        text-shadow: 0 2px 4px rgba(0,0,0,0.1);
         user-select: none;
+        text-shadow: 0 0 4px rgba(0,0,0,0.15);
     }
     .star-rating label:hover {
-        transform: scale(1.2) rotate(-5deg);
+        transform: scale(1.25) rotate(-4deg);
     }
     .star-rating label:hover,
     .star-rating label:hover ~ label,
     .star-rating input:checked ~ label {
-        color: #f5a623;
-        transform: scale(1.15);
-        text-shadow: 0 0 20px rgba(245, 166, 35, 0.4);
+        color: #f39c12;
+        transform: scale(1.18);
+        text-shadow: 0 0 16px rgba(243, 156, 18, 0.7);
     }
     .empty-state {
         text-align: center;
@@ -389,18 +389,18 @@ function hideTyping() {
                 <input type="hidden" name="question_id" value="{{ q.id }}">
                 <div class="star-rating" data-question="{{ q.id }}">
                     <input type="radio" name="rating_{{ q.id }}" id="star5_{{ q.id }}" value="5">
-                    <label for="star5_{{ q.id }}" data-rating="5" onclick="selectStar('{{ q.id }}', 5)">⭐</label>
+                    <label for="star5_{{ q.id }}" data-rating="5" onclick="selectStar('{{ q.id }}', 5)">☆</label>
                     <input type="radio" name="rating_{{ q.id }}" id="star4_{{ q.id }}" value="4">
-                    <label for="star4_{{ q.id }}" data-rating="4" onclick="selectStar('{{ q.id }}', 4)">⭐</label>
+                    <label for="star4_{{ q.id }}" data-rating="4" onclick="selectStar('{{ q.id }}', 4)">☆</label>
                     <input type="radio" name="rating_{{ q.id }}" id="star3_{{ q.id }}" value="3">
-                    <label for="star3_{{ q.id }}" data-rating="3" onclick="selectStar('{{ q.id }}', 3)">⭐</label>
+                    <label for="star3_{{ q.id }}" data-rating="3" onclick="selectStar('{{ q.id }}', 3)">☆</label>
                     <input type="radio" name="rating_{{ q.id }}" id="star2_{{ q.id }}" value="2">
-                    <label for="star2_{{ q.id }}" data-rating="2" onclick="selectStar('{{ q.id }}', 2)">⭐</label>
+                    <label for="star2_{{ q.id }}" data-rating="2" onclick="selectStar('{{ q.id }}', 2)">☆</label>
                     <input type="radio" name="rating_{{ q.id }}" id="star1_{{ q.id }}" value="1">
-                    <label for="star1_{{ q.id }}" data-rating="1" onclick="selectStar('{{ q.id }}', 1)">⭐</label>
+                    <label for="star1_{{ q.id }}" data-rating="1" onclick="selectStar('{{ q.id }}', 1)">☆</label>
                 </div>
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px; text-align: center;">
-                    <span id="rating_text_{{ q.id }}" style="font-weight: 600; color: #ddd;">Select a star</span>
+                <div style="font-size: 13px; color: var(--text-muted); margin-top: 5px; text-align: center;">
+                    <span id="rating_text_{{ q.id }}" style="font-weight: 600; color: #94a3b8;">Click empty stars to rate</span>
                 </div>
             </div>
             {% endfor %}
@@ -840,38 +840,33 @@ function selectStar(questionId, rating) {
     const textElement = document.getElementById(`rating_text_${questionId}`);
     
     labels.forEach(label => {
-        label.style.color = '#e0e0e0';
-        label.style.transform = 'scale(1)';
+        const r = parseInt(label.getAttribute('data-rating'));
+        if (r <= rating) {
+            label.textContent = '★';
+            label.style.color = '#f39c12';
+            label.style.textShadow = '0 0 16px rgba(243, 156, 18, 0.8)';
+            label.style.transform = 'scale(1.15)';
+        } else {
+            label.textContent = '☆';
+            label.style.color = '#e2e8f0';
+            label.style.textShadow = '0 0 4px rgba(0,0,0,0.15)';
+            label.style.transform = 'scale(1)';
+        }
     });
-    
-    const selectedLabel = document.getElementById(`star${rating}_${questionId}`);
-    if (selectedLabel) {
-        const allLabels = selectedLabel.parentElement.querySelectorAll('label');
-        let found = false;
-        allLabels.forEach(label => {
-            if (label === selectedLabel) found = true;
-            if (!found) {
-                label.style.color = '#f5a623';
-                label.style.transform = 'scale(1.1)';
-            }
-        });
-        selectedLabel.style.color = '#f5a623';
-        selectedLabel.style.transform = 'scale(1.2)';
-    }
     
     const radio = document.getElementById(`star${rating}_${questionId}`);
     if (radio) radio.checked = true;
     
     const ratingTexts = {
-        1: '⭐ Very Poor',
-        2: '⭐⭐ Poor',
-        3: '⭐⭐⭐ Good',
-        4: '⭐⭐⭐⭐ Very Good',
-        5: '⭐⭐⭐⭐⭐ Excellent!'
+        1: '⭐ 1 Star - Poor',
+        2: '⭐⭐ 2 Stars - Fair',
+        3: '⭐⭐⭐ 3 Stars - Good',
+        4: '⭐⭐⭐⭐ 4 Stars - Very Good',
+        5: '⭐⭐⭐⭐⭐ 5 Stars - Excellent!'
     };
     if (textElement) {
         textElement.textContent = ratingTexts[rating] || 'Selected';
-        textElement.style.color = '#f5a623';
+        textElement.style.color = '#f39c12';
         textElement.style.fontWeight = '700';
     }
 }

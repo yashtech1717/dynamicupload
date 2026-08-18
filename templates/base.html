@@ -205,19 +205,51 @@
             max-width: 100%;
             border-radius: 18px;
             box-shadow: var(--neu-flat);
+            border: 2px solid rgba(255, 255, 255, 0.7);
         }
         .media-container audio { width: 100%; border-radius: 18px; }
+        
+        .media-reveal-btn {
+            padding: 8px 18px !important;
+            border-radius: 16px !important;
+            font-weight: 700 !important;
+            font-size: 13px !important;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 7px !important;
+            box-shadow: 4px 4px 10px #c2c9d6, -4px -4px 10px #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.6) !important;
+            background: var(--bg-primary) !important;
+            text-decoration: none !important;
+            user-select: none;
+        }
+        .media-reveal-btn:hover {
+            transform: translateY(-2px) scale(1.02) !important;
+            box-shadow: 6px 8px 16px rgba(0,0,0,0.12), -4px -4px 10px #ffffff !important;
+        }
+        .media-reveal-btn:active {
+            transform: translateY(1px) scale(0.98) !important;
+            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.15), inset -2px -2px 5px #ffffff !important;
+        }
+        .image-btn { color: #4f7cff !important; border-left: 3px solid #4f7cff !important; }
+        .video-btn { color: #ff4757 !important; border-left: 3px solid #ff4757 !important; }
+        .audio-btn { color: #2ecc71 !important; border-left: 3px solid #2ecc71 !important; }
+
         .empty-state { text-align: center; padding: 40px 20px; }
         .empty-state .icon { font-size: 64px; display: block; margin-bottom: 15px; }
         .empty-state h3 { color: var(--text-secondary); margin-bottom: 10px; }
         .empty-state p { color: var(--text-muted); }
+        
         @media (max-width: 600px) {
-            body { padding: 12px; }
-            .card { padding: 22px 18px; border-radius: 24px; }
-            .header h1 { font-size: 28px; }
+            body { padding: 10px; }
+            .card { padding: 20px 14px; border-radius: 22px; }
+            .header h1 { font-size: 26px; }
             .user-nav { flex-direction: column; align-items: stretch; text-align: center; }
             .user-nav .user-info { justify-content: center; }
-            .btn { width: 100%; justify-content: center; }
+            .btn-lg { width: 100%; justify-content: center; }
+            .media-container video, .media-container img { max-height: 280px; }
         }
     </style>
 </head>
