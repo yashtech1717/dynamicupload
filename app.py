@@ -303,14 +303,11 @@ def get_all_questions():
                     d['asker'] = {'username': asker.username, 'id': asker.id}
                 questions.append(SupabaseDoc(d))
             
-            # Sort by display_order ascending if present; fallback to created_at
+            # Sort by display_order ascending if present; fallback to created_at ascending
             def sort_key(q):
                 d_order = getattr(q, 'display_order', None)
-                if d_order is not None:
-                    try:
-                        return (0, int(d_order))
-                    except Exception:
-                        pass
+                if d_order is not None and str(d_order).isdigit() and int(d_order) > 0:
+                    return (0, int(d_order))
                 created = getattr(q, 'created_at', None)
                 dt_str = str(created.val) if hasattr(created, 'val') and created.val else str(created or '')
                 return (1, dt_str)
@@ -320,13 +317,13 @@ def get_all_questions():
         except Exception as e:
             logger.error(f"Error fetching all questions: {e}")
             raise RuntimeError(f"Supabase read error fetching all questions: {e}")
-    return get_cached('all_questions', _fetch, ttl=10)
+    return get_cached('all_questions', _fetch, ttl=5)
 
 def insert_question_at_position(q_data, target_pos='last'):
     all_qs = get_all_questions()
     q_id = q_data.get('id')
-    remaining = [q for q in all_qs if str(getattr(q, 'id', '')) != str(q_id)]
     
+    remaining = [q for q in all_qs if str(getattr(q, 'id', '')) != str(q_id) and getattr(q, 'id', None)]
     total_q = len(remaining)
     
     pos_str = str(target_pos).strip().lower()
@@ -337,7 +334,12 @@ def insert_question_at_position(q_data, target_pos='last'):
     else:
         try:
             pos_num = int(pos_str)
-            idx = max(0, min(pos_num - 1, total_q))
+            if pos_num <= 1:
+                idx = 0
+            elif pos_num > total_q:
+                idx = total_q
+            else:
+                idx = pos_num - 1
         except Exception:
             idx = total_q
             
@@ -349,14 +351,27 @@ def insert_question_at_position(q_data, target_pos='last'):
     remaining = [q for q in remaining if str(getattr(q, 'id', '')) != str(saved_id)]
     remaining.insert(idx, saved_q)
     
+    base_dt = datetime(2026, 1, 1, 0, 0, 0)
+    
     for order_idx, q in enumerate(remaining, start=1):
         curr_id = getattr(q, 'id', None)
         if curr_id and supabase_client:
             try:
                 t_id = int(curr_id) if str(curr_id).isdigit() else curr_id
-                supabase_client.table('questions').update({'display_order': order_idx}).eq('id', t_id).execute()
+                synthetic_created = (base_dt + timedelta(seconds=order_idx)).isoformat() + 'Z'
+                
+                update_payload = {
+                    'display_order': order_idx,
+                    'created_at': synthetic_created
+                }
+                
+                try:
+                    supabase_client.table('questions').update(update_payload).eq('id', t_id).execute()
+                except Exception as ex1:
+                    logger.info(f"Fallback updating created_at only for Q {t_id}: {ex1}")
+                    supabase_client.table('questions').update({'created_at': synthetic_created}).eq('id', t_id).execute()
             except Exception as e:
-                logger.warning(f"Note updating display_order for Q {curr_id}: {e}")
+                logger.warning(f"Error re-indexing Q {curr_id}: {e}")
                 
     invalidate_cache('all_questions')
     return saved_q

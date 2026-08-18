@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS public.questions (
     answer_audio_filename TEXT,
     has_answer BOOLEAN DEFAULT FALSE,
     is_answered BOOLEAN DEFAULT FALSE,
+    display_order INT DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
