@@ -1359,12 +1359,17 @@ def admin_panel():
 def admin_responses():
     all_replies = get_all_replies()
     total_questions = len(get_all_questions())
-    answered_questions = len(set(r.question_id for r in all_replies if hasattr(r, 'question_id')))
+    answered_questions = len(set(r.question_id for r in all_replies if hasattr(r, 'question_id') and r.question_id))
+    total_replies = len(all_replies)
+    completion_percentage = int((answered_questions / total_questions) * 100) if total_questions > 0 else 0
     
     return render_template('admin_responses.html',
         all_replies=all_replies,
         total_questions=total_questions,
-        answered_questions=answered_questions
+        total_replies=total_replies,
+        answered_questions=answered_questions,
+        unique_questions=answered_questions,
+        completion_percentage=completion_percentage
     )
 
 @app.route('/admin/typing-text', methods=['GET', 'POST'])

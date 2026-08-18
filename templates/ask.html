@@ -249,11 +249,10 @@
                 </label>
                 <select id="question_position" name="question_position" style="width: 100%; padding: 14px 18px; border: none; border-radius: 14px; background: #eef2f7; box-shadow: inset 4px 4px 8px #d3d8de, inset -4px -4px 8px #ffffff; font-family: inherit; font-size: 15px; color: #2d3748; outline: none; cursor: pointer;">
                     <option value="first">🥇 1st Position — Add at Beginning (First Question)</option>
-                    {% if total_questions and total_questions > 0 %}
-                        {% for pos in range(2, total_questions + 1) %}
-                            <option value="{{ pos }}">Position {{ pos }} ({{ pos }}{% if pos == 2 %}nd{% elif pos == 3 %}rd{% else %}th{% endif %})</option>
-                        {% endfor %}
-                    {% endif %}
+                    {% set max_pos = (total_questions + 1) if (total_questions and total_questions > 5) else 10 %}
+                    {% for pos in range(2, max_pos + 1) %}
+                        <option value="{{ pos }}">Position {{ pos }} ({{ pos }}{% if pos == 2 %}nd{% elif pos == 3 %}rd{% else %}th{% endif %})</option>
+                    {% endfor %}
                     <option value="last" selected>🏁 Last Position — Add at End (Last Question)</option>
                 </select>
                 <div class="helper-text">Select where this question should be placed in the sequence (1st, 2nd, 3rd... or Last).</div>

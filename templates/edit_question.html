@@ -26,11 +26,10 @@
             </label>
             <select name="question_position" style="width: 100%; padding: 14px 18px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 15px; color: var(--text-primary); outline: none; cursor: pointer; font-family: inherit;">
                 <option value="first" {% if current_pos == 1 %}selected{% endif %}>🥇 1st Position — Beginning of Stack</option>
-                {% if total_questions and total_questions > 0 %}
-                    {% for pos in range(2, total_questions + 1) %}
-                        <option value="{{ pos }}" {% if current_pos == pos %}selected{% endif %}>Position {{ pos }} ({{ pos }}{% if pos == 2 %}nd{% elif pos == 3 %}rd{% else %}th{% endif %})</option>
-                    {% endfor %}
-                {% endif %}
+                {% set max_pos = (total_questions + 1) if (total_questions and total_questions > 5) else 10 %}
+                {% for pos in range(2, max_pos + 1) %}
+                    <option value="{{ pos }}" {% if current_pos == pos %}selected{% endif %}>Position {{ pos }} ({{ pos }}{% if pos == 2 %}nd{% elif pos == 3 %}rd{% else %}th{% endif %})</option>
+                {% endfor %}
                 <option value="last" {% if current_pos == total_questions %}selected{% endif %}>🏁 Last Position — End of Stack</option>
             </select>
         </div>

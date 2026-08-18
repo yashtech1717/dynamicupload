@@ -32,12 +32,12 @@
                 <span style="color: var(--text-muted); font-size: 11px;">{{ q.responses|length }} responses</span>
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <form method="post" action="{{ url_for('toggle_feedback_question', q_id=q.id) }}" style="display: inline;">
+                <form method="post" action="{{ url_for('toggle_feedback_q', q_id=q.id) }}" style="display: inline;">
                     <button type="submit" class="btn btn-sm {% if q.is_active %}btn-warning{% else %}btn-success{% endif %}" style="padding: 4px 12px; font-size: 11px;">
                         {% if q.is_active %}⏸️ Deactivate{% else %}▶️ Activate{% endif %}
                     </button>
                 </form>
-                <form method="post" action="{{ url_for('delete_feedback_question', q_id=q.id) }}" style="display: inline;" onsubmit="return confirm('Delete this feedback question?');">
+                <form method="post" action="{{ url_for('delete_feedback_q', q_id=q.id) }}" style="display: inline;" onsubmit="return confirm('Delete this feedback question?');">
                     <button type="submit" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 11px;">🗑️</button>
                 </form>
             </div>
