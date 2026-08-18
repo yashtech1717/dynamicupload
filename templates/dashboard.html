@@ -369,7 +369,7 @@ function hideTyping() {
         {% set has_submitted = namespace(value=false) %}
         {% for fq in feedback_questions %}
             {% for response in fq.responses %}
-                {% if response.user_id == current_user.id %}
+                {% if response.user_id|string == current_user.id|string %}
                     {% set has_submitted.value = true %}
                 {% endif %}
             {% endfor %}

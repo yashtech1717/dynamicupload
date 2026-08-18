@@ -294,7 +294,7 @@ def get_all_questions():
             raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
         try:
             users_map = {str(u.id): u for u in get_all_users()}
-            res = supabase_client.table('questions').select('*').order('created_at', desc=True).execute()
+            res = supabase_client.table('questions').select('*').execute()
             questions = []
             for d in (res.data or []):
                 u_id = str(d.get('user_id'))
@@ -302,11 +302,64 @@ def get_all_questions():
                 if asker:
                     d['asker'] = {'username': asker.username, 'id': asker.id}
                 questions.append(SupabaseDoc(d))
+            
+            # Sort by display_order ascending if present; fallback to created_at
+            def sort_key(q):
+                d_order = getattr(q, 'display_order', None)
+                if d_order is not None:
+                    try:
+                        return (0, int(d_order))
+                    except Exception:
+                        pass
+                created = getattr(q, 'created_at', None)
+                dt_str = str(created.val) if hasattr(created, 'val') and created.val else str(created or '')
+                return (1, dt_str)
+
+            questions.sort(key=sort_key)
             return questions
         except Exception as e:
             logger.error(f"Error fetching all questions: {e}")
             raise RuntimeError(f"Supabase read error fetching all questions: {e}")
     return get_cached('all_questions', _fetch, ttl=10)
+
+def insert_question_at_position(q_data, target_pos='last'):
+    all_qs = get_all_questions()
+    q_id = q_data.get('id')
+    remaining = [q for q in all_qs if str(getattr(q, 'id', '')) != str(q_id)]
+    
+    total_q = len(remaining)
+    
+    pos_str = str(target_pos).strip().lower()
+    if pos_str == 'first' or pos_str == '1':
+        idx = 0
+    elif pos_str == 'last':
+        idx = total_q
+    else:
+        try:
+            pos_num = int(pos_str)
+            idx = max(0, min(pos_num - 1, total_q))
+        except Exception:
+            idx = total_q
+            
+    saved_q = save_question(q_data)
+    if not saved_q:
+        return None
+        
+    saved_id = getattr(saved_q, 'id', None) or q_data.get('id')
+    remaining = [q for q in remaining if str(getattr(q, 'id', '')) != str(saved_id)]
+    remaining.insert(idx, saved_q)
+    
+    for order_idx, q in enumerate(remaining, start=1):
+        curr_id = getattr(q, 'id', None)
+        if curr_id and supabase_client:
+            try:
+                t_id = int(curr_id) if str(curr_id).isdigit() else curr_id
+                supabase_client.table('questions').update({'display_order': order_idx}).eq('id', t_id).execute()
+            except Exception as e:
+                logger.warning(f"Note updating display_order for Q {curr_id}: {e}")
+                
+    invalidate_cache('all_questions')
+    return saved_q
 
 def get_question_by_id(question_id):
     if not supabase_initialized or not supabase_client or not question_id:
@@ -1056,8 +1109,10 @@ def ask_question():
                 q_data['answer_audio_data'] = get_media_url(answer_audio_url, 'audio')
                 q_data['answer_audio_filename'] = request.form.get('answer_audio_filename', 'external_answer_audio')
         
+        question_position = request.form.get('question_position', 'last')
+        
         try:
-            saved_doc = save_question(q_data)
+            saved_doc = insert_question_at_position(q_data, target_pos=question_position)
             if not saved_doc:
                 raise RuntimeError("Supabase PostgreSQL question document write failed.")
         except Exception as fe:
@@ -1069,13 +1124,21 @@ def ask_question():
         
         all_q = get_all_questions()
         if all_q:
-            session['current_question_index'] = max(0, len(all_q) - 1)
+            saved_id = getattr(saved_doc, 'id', None)
+            new_idx = 0
+            for idx, q in enumerate(all_q):
+                if str(getattr(q, 'id', '')) == str(saved_id):
+                    new_idx = idx
+                    break
+            session['current_question_index'] = new_idx
             session.modified = True
         
         flash('Question asked successfully!', 'success')
         return redirect(url_for('dashboard'))
     
-    return render_template('ask.html')
+    questions = get_all_questions()
+    total_questions = len(questions)
+    return render_template('ask.html', questions=questions, total_questions=total_questions)
 
 @app.route('/reply/<int:question_id>', methods=['GET', 'POST'])
 @login_required
@@ -1221,11 +1284,24 @@ def edit_question(question_id):
             q_dict['audio_data'] = get_media_url(audio_url, 'audio')
             q_dict['audio_filename'] = request.form.get('audio_filename', 'external_audio')
         
-        save_question(q_dict)
+        question_position = request.form.get('question_position')
+        if question_position:
+            insert_question_at_position(q_dict, target_pos=question_position)
+        else:
+            save_question(q_dict)
+            
         flash('Question updated successfully!', 'success')
         return redirect(url_for('dashboard'))
     
-    return render_template('edit_question.html', question=question)
+    questions = get_all_questions()
+    total_questions = len(questions)
+    current_pos = 1
+    for idx, q in enumerate(questions, start=1):
+        if str(getattr(q, 'id', '')) == str(question_id):
+            current_pos = idx
+            break
+            
+    return render_template('edit_question.html', question=question, questions=questions, total_questions=total_questions, current_pos=current_pos)
 
 @app.route('/question/<int:question_id>/delete-media', methods=['POST'])
 @login_required
@@ -1387,7 +1463,7 @@ def submit_feedback():
         flash('Only friends can submit feedback.', 'danger')
         return redirect(url_for('dashboard'))
     
-    existing = [r for r in get_all_feedback_responses() if getattr(r, 'user_id', None) == current_user.id]
+    existing = [r for r in get_all_feedback_responses() if str(getattr(r, 'user_id', '')) == str(current_user.id)]
     if existing:
         flash('You have already submitted feedback.', 'warning')
         return redirect(url_for('dashboard'))

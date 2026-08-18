@@ -18,6 +18,22 @@
             <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Question Text</label>
             <textarea name="text" required style="width: 100%; padding: 16px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 80px; font-family: inherit;">{{ question.text }}</textarea>
         </div>
+
+        <div>
+            <label style="font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <span>🎯 Question Position / Order</span>
+                <span style="font-size: 11px; background: #f39c12; color: white; padding: 2px 8px; border-radius: 10px; font-weight: 700;">Currently Position {{ current_pos or 1 }}</span>
+            </label>
+            <select name="question_position" style="width: 100%; padding: 14px 18px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 15px; color: var(--text-primary); outline: none; cursor: pointer; font-family: inherit;">
+                <option value="first" {% if current_pos == 1 %}selected{% endif %}>🥇 1st Position — Beginning of Stack</option>
+                {% if total_questions and total_questions > 0 %}
+                    {% for pos in range(2, total_questions + 1) %}
+                        <option value="{{ pos }}" {% if current_pos == pos %}selected{% endif %}>Position {{ pos }} ({{ pos }}{% if pos == 2 %}nd{% elif pos == 3 %}rd{% else %}th{% endif %})</option>
+                    {% endfor %}
+                {% endif %}
+                <option value="last" {% if current_pos == total_questions %}selected{% endif %}>🏁 Last Position — End of Stack</option>
+            </select>
+        </div>
         
         <div>
             <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Answer Text (Optional)</label>

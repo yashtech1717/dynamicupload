@@ -55,29 +55,84 @@
         .header h1 { font-size: 38px; font-weight: 800; color: #1e293b; letter-spacing: -0.5px; }
         .header p { color: var(--text-muted); font-size: 15px; margin-top: 4px; }
         .btn {
-            padding: 12px 26px;
+            padding: 12px 28px;
             font-size: 15px;
             font-weight: 700;
-            border: none;
+            border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 20px;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 9px;
             text-decoration: none;
             font-family: var(--font-family);
             box-shadow: var(--neu-btn);
+            letter-spacing: 0.2px;
+            user-select: none;
+            position: relative;
+            overflow: hidden;
         }
-        .btn:hover { transform: translateY(-2px); box-shadow: 8px 8px 18px #c2c9d6, -8px -8px 18px #ffffff; }
-        .btn:active { transform: translateY(1px); box-shadow: inset 3px 3px 6px #c2c9d6, inset -3px -3px 6px #ffffff; }
-        .btn-primary { background: var(--gradient-primary); color: white; box-shadow: 6px 6px 14px #c2c9d6, -6px -6px 14px #ffffff, 0 6px 20px rgba(79, 124, 255, 0.3); }
-        .btn-success { background: var(--accent-green); color: white; }
-        .btn-danger { background: var(--accent-red); color: white; }
-        .btn-warning { background: var(--accent-yellow); color: white; }
-        .btn-gold { background: var(--gradient-gold); color: #333; }
+        .btn:hover { 
+            transform: translateY(-3px) scale(1.015); 
+            box-shadow: 8px 12px 24px rgba(0, 0, 0, 0.12), -4px -4px 14px #ffffff; 
+            filter: brightness(1.05);
+        }
+        .btn:active { 
+            transform: translateY(1px) scale(0.98); 
+            box-shadow: inset 3px 3px 8px rgba(0, 0, 0, 0.15), inset -3px -3px 8px #ffffff; 
+        }
+        .btn-primary { 
+            background: linear-gradient(135deg, #4f7cff 0%, #6c5ce7 100%); 
+            color: white !important; 
+            box-shadow: 0 6px 20px rgba(79, 124, 255, 0.35); 
+            border: none;
+        }
+        .btn-primary:hover {
+            box-shadow: 0 10px 28px rgba(79, 124, 255, 0.5);
+        }
+        .btn-success { 
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); 
+            color: white !important; 
+            box-shadow: 0 6px 20px rgba(46, 204, 113, 0.35); 
+            border: none;
+        }
+        .btn-success:hover {
+            box-shadow: 0 10px 28px rgba(46, 204, 113, 0.5);
+        }
+        .btn-danger { 
+            background: linear-gradient(135deg, #ff4757 0%, #e74c3c 100%); 
+            color: white !important; 
+            box-shadow: 0 6px 20px rgba(231, 76, 60, 0.35); 
+            border: none;
+        }
+        .btn-danger:hover {
+            box-shadow: 0 10px 28px rgba(231, 76, 60, 0.5);
+        }
+        .btn-warning { 
+            background: linear-gradient(135deg, #e67e22 0%, #d35400 100%); 
+            color: white !important; 
+            box-shadow: 0 6px 20px rgba(230, 126, 34, 0.35); 
+            border: none;
+        }
+        .btn-gold { 
+            background: linear-gradient(135deg, #ffd700 0%, #f39c12 100%); 
+            color: #2c3e50 !important; 
+            font-weight: 800;
+            box-shadow: 0 6px 22px rgba(243, 156, 18, 0.4); 
+            border: none;
+        }
+        .btn-gold:hover {
+            box-shadow: 0 12px 30px rgba(243, 156, 18, 0.55);
+        }
+        .btn-secondary {
+            background: var(--bg-primary);
+            color: var(--text-secondary) !important;
+            box-shadow: var(--neu-btn);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
         .btn-sm { padding: 8px 18px; font-size: 13px; border-radius: 16px; }
-        .btn-lg { padding: 16px 35px; font-size: 17px; border-radius: 22px; }
+        .btn-lg { padding: 16px 36px; font-size: 17px; border-radius: 22px; }
         
         #toastContainer {
             position: fixed;
