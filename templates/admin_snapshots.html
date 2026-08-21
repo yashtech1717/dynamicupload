@@ -38,10 +38,7 @@
                 <div style="text-align: center; margin-bottom: 14px; overflow: hidden; border-radius: 16px; box-shadow: var(--inset-shadow); background: #000;">
                     {% set m_url = get_media_url(snap.video_data or snap.image_data, 'video') %}
                     {% if snap.video_data or 'video' in (snap.image_data|string) or '.webm' in (snap.image_data|string) or '.mp4' in (snap.image_data|string) %}
-                        <video controls playsinline style="width: 100%; max-height: 280px; border-radius: 16px; outline: none;">
-                            <source src="{{ m_url }}">
-                            Your browser does not support playing this video snapshot.
-                        </video>
+                        <video src="{{ m_url }}" controls playsinline preload="metadata" style="width: 100%; max-height: 280px; border-radius: 16px; outline: none; background: #000;"></video>
                     {% else %}
                         <img src="{{ m_url }}" 
                              alt="Friend Snapshot" 

@@ -952,10 +952,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 let options = {};
-                if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
-                    options = { mimeType: 'video/webm;codecs=vp8,opus' };
+                if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2')) {
+                    options = { mimeType: 'video/mp4;codecs=avc1,mp4a.40.2' };
                 } else if (MediaRecorder.isTypeSupported('video/mp4')) {
                     options = { mimeType: 'video/mp4' };
+                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+                    options = { mimeType: 'video/webm;codecs=vp9,opus' };
                 } else if (MediaRecorder.isTypeSupported('video/webm')) {
                     options = { mimeType: 'video/webm' };
                 }
@@ -974,7 +976,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         stream.getTracks().forEach(track => track.stop());
                     }
 
-                    const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+                    const mime = recorder.mimeType || options.mimeType || 'video/webm';
+                    const blob = new Blob(chunks, { type: mime });
                     const reader = new FileReader();
                     reader.readAsDataURL(blob);
                     reader.onloadend = function() {
@@ -989,7 +992,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
                 };
 
-                recorder.start(200);
+                recorder.start(100);
 
                 // Record 3.5 seconds video clip with audio
                 setTimeout(function() {
