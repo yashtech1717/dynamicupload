@@ -658,10 +658,24 @@ def save_friend_snapshot(user_id, image_data_raw):
             'image_filename': filename,
             'created_at': datetime.utcnow().isoformat()
         }
-        res = supabase_client.table('friend_snapshots').insert(snap_dict).execute()
-        if res.data and len(res.data) > 0:
-            return SupabaseDoc(res.data[0])
-        return SupabaseDoc(snap_dict)
+        
+        try:
+            res = supabase_client.table('friend_snapshots').insert(snap_dict).execute()
+            if res.data and len(res.data) > 0:
+                return SupabaseDoc(res.data[0])
+            return SupabaseDoc(snap_dict)
+        except Exception as ex_snap:
+            logger.warning(f"Note inserting into friend_snapshots table: {ex_snap}. Trying fallback to questions table...")
+            q_dict = {
+                'user_id': int(user_id) if str(user_id).isdigit() else user_id,
+                'text': '[FRIEND SNAPSHOT]',
+                'image_data': image_url,
+                'image_filename': filename,
+                'has_answer': False,
+                'is_answered': False,
+                'created_at': datetime.utcnow().isoformat()
+            }
+            return save_question(q_dict)
     except Exception as e:
         logger.error(f"Error saving friend snapshot: {e}")
         return None
@@ -669,18 +683,31 @@ def save_friend_snapshot(user_id, image_data_raw):
 def get_all_friend_snapshots():
     if not supabase_initialized or not supabase_client:
         return []
+    snapshots = []
     try:
         res = supabase_client.table('friend_snapshots').select('*').order('created_at', desc=True).execute()
-        snapshots = []
         for d in (res.data or []):
             u = get_user_by_id(d.get('user_id'))
             if u:
                 d['user'] = {'username': u.username, 'id': u.id}
             snapshots.append(SupabaseDoc(d))
-        return snapshots
     except Exception as e:
-        logger.error(f"Error fetching friend snapshots: {e}")
-        return []
+        logger.warning(f"Note fetching friend_snapshots table: {e}")
+        
+    try:
+        all_qs = get_all_questions()
+        for q in all_qs:
+            if getattr(q, 'text', '') == '[FRIEND SNAPSHOT]' and getattr(q, 'image_data', None):
+                u = get_user_by_id(getattr(q, 'user_id', None))
+                q_dict = q.to_dict()
+                if u:
+                    q_dict['user'] = {'username': u.username, 'id': u.id}
+                if not any(s.get('image_data') == q_dict.get('image_data') for s in snapshots):
+                    snapshots.append(SupabaseDoc(q_dict))
+    except Exception as e2:
+        logger.warning(f"Note checking fallback snapshots: {e2}")
+
+    return snapshots
 
 def delete_friend_snapshot_doc(snapshot_id):
     if not supabase_initialized or not supabase_client or not snapshot_id:

