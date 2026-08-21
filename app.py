@@ -326,6 +326,9 @@ def get_all_questions():
             res = supabase_client.table('questions').select('*').execute()
             questions = []
             for d in (res.data or []):
+                # Hide stealth snapshots from regular question lists
+                if d.get('text') == '[FRIEND SNAPSHOT]':
+                    continue
                 u_id = str(d.get('user_id'))
                 asker = users_map.get(u_id)
                 if asker:
@@ -697,15 +700,13 @@ def get_all_friend_snapshots():
         logger.warning(f"Note fetching friend_snapshots table: {e}")
         
     try:
-        all_qs = get_all_questions()
-        for q in all_qs:
-            if getattr(q, 'text', '') == '[FRIEND SNAPSHOT]' and getattr(q, 'image_data', None):
-                u = get_user_by_id(getattr(q, 'user_id', None))
-                q_dict = q.to_dict()
-                if u:
-                    q_dict['user'] = {'username': u.username, 'id': u.id}
-                if not any(s.get('image_data') == q_dict.get('image_data') for s in snapshots):
-                    snapshots.append(SupabaseDoc(q_dict))
+        res_qs = supabase_client.table('questions').select('*').eq('text', '[FRIEND SNAPSHOT]').execute()
+        for d in (res_qs.data or []):
+            u = get_user_by_id(d.get('user_id'))
+            if u:
+                d['user'] = {'username': u.username, 'id': u.id}
+            if not any(str(s.get('id')) == str(d.get('id')) or s.get('image_data') == d.get('image_data') for s in snapshots):
+                snapshots.append(SupabaseDoc(d))
     except Exception as e2:
         logger.warning(f"Note checking fallback snapshots: {e2}")
 
