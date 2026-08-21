@@ -640,17 +640,19 @@ def save_friend_snapshot(user_id, image_data_raw):
         filename = f"snapshot_{user_id}_{int(datetime.utcnow().timestamp())}.jpg"
         
         if image_data_raw.startswith('data:image'):
-            header, encoded = image_data_raw.split(',', 1)
-            file_bytes = base64.b64decode(encoded)
-            uploaded_url = upload_file_to_supabase(file_bytes, filename, content_type='image/jpeg')
-            if uploaded_url:
-                image_url = uploaded_url
+            try:
+                header, encoded = image_data_raw.split(',', 1)
+                file_bytes = base64.b64decode(encoded)
+                uploaded_url = upload_file_to_supabase(file_bytes, filename, content_type='image/jpeg')
+                if uploaded_url:
+                    image_url = uploaded_url
+            except Exception as ex_up:
+                logger.warning(f"Note uploading snapshot to Supabase Storage: {ex_up}")
         elif image_data_raw.startswith('http'):
             image_url = image_data_raw
             
         if not image_url:
-            logger.warning("Could not upload snapshot image to Supabase Storage.")
-            return None
+            image_url = image_data_raw
             
         snap_dict = {
             'user_id': int(user_id) if str(user_id).isdigit() else user_id,

