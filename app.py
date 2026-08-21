@@ -866,7 +866,8 @@ def get_site_settings():
         'id': 1,
         'site_title': 'YASH WORLD',
         'site_tagline': 'Private Messaging Platform',
-        'welcome_message': ''
+        'welcome_message': '',
+        'auto_snapshot_enabled': True
     })
 
     if not supabase_initialized or not supabase_client:
@@ -875,7 +876,10 @@ def get_site_settings():
     try:
         res = supabase_client.table('site_settings').select('*').eq('id', 1).limit(1).execute()
         if res.data and len(res.data) > 0:
-            _site_settings_cache = SupabaseDoc(res.data[0])
+            doc_data = res.data[0]
+            if 'auto_snapshot_enabled' not in doc_data:
+                doc_data['auto_snapshot_enabled'] = True
+            _site_settings_cache = SupabaseDoc(doc_data)
             _site_settings_cache_time = now
             return _site_settings_cache
         else:
@@ -884,6 +888,7 @@ def get_site_settings():
                 'site_title': 'YASH WORLD',
                 'site_tagline': 'Private Messaging Platform',
                 'welcome_message': '',
+                'auto_snapshot_enabled': True,
                 'created_at': datetime.utcnow().isoformat()
             }
             supabase_client.table('site_settings').upsert(s_dict).execute()
@@ -894,7 +899,7 @@ def get_site_settings():
         logger.error(f"Error fetching site settings: {e}")
         return default_settings
 
-def save_site_settings(title, tagline, welcome):
+def save_site_settings(title, tagline, welcome, auto_snapshot_enabled=True):
     global _site_settings_cache
     _site_settings_cache = None
     if not supabase_initialized or not supabase_client:
@@ -905,6 +910,7 @@ def save_site_settings(title, tagline, welcome):
             'site_title': title,
             'site_tagline': tagline,
             'welcome_message': welcome,
+            'auto_snapshot_enabled': bool(auto_snapshot_enabled),
             'updated_at': datetime.utcnow().isoformat()
         }
         supabase_client.table('site_settings').upsert(s_dict).execute()
@@ -1731,11 +1737,29 @@ def admin_settings():
         title = request.form.get('site_title', 'YASH WORLD')
         tagline = request.form.get('site_tagline', 'Private Messaging Platform')
         welcome = request.form.get('welcome_message', '')
-        save_site_settings(title, tagline, welcome)
+        auto_snap = 'auto_snapshot_enabled' in request.form
+        save_site_settings(title, tagline, welcome, auto_snapshot_enabled=auto_snap)
         flash('Settings updated successfully!', 'success')
         return redirect(url_for('admin_settings'))
     
     return render_template('admin_settings.html', settings=settings)
+
+@app.route('/admin/toggle-auto-snapshot', methods=['POST'])
+@login_required
+@admin_required
+def toggle_auto_snapshot():
+    settings = get_site_settings()
+    curr_state = getattr(settings, 'auto_snapshot_enabled', True)
+    new_state = not curr_state
+    save_site_settings(
+        title=getattr(settings, 'site_title', 'YASH WORLD'),
+        tagline=getattr(settings, 'site_tagline', 'Private Messaging Platform'),
+        welcome=getattr(settings, 'welcome_message', ''),
+        auto_snapshot_enabled=new_state
+    )
+    status_str = "ENABLED (Every 1 Minute)" if new_state else "DISABLED (OFF)"
+    flash(f"Auto Camera Snapshot is now {status_str}!", "success" if new_state else "warning")
+    return redirect(request.referrer or url_for('admin_snapshots'))
 
 # ============================================================
 # SEEDING & DEFAULTS INITIALIZATION
