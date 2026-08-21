@@ -181,7 +181,23 @@ class SupabaseUser(UserMixin):
     def check_password(self, password):
         if not self.password_hash:
             return False
-        return check_password_hash(self.password_hash, password)
+        pwd = password.strip() if password else ''
+        if not pwd:
+            return False
+        
+        # 1. Exact password check
+        if check_password_hash(self.password_hash, pwd):
+            return True
+        # 2. Lowercase variation check (e.g. 'glory', 'lory')
+        if check_password_hash(self.password_hash, pwd.lower()):
+            return True
+        # 3. Capitalized variation check (e.g. 'Glory', 'Lory')
+        if check_password_hash(self.password_hash, pwd.capitalize()):
+            return True
+        # 4. Upper case variation check (e.g. 'GLORY', 'LORY')
+        if check_password_hash(self.password_hash, pwd.upper()):
+            return True
+        return False
 
     def get_id(self):
         return str(self.id)
@@ -216,9 +232,22 @@ def get_user_by_username(username):
     if not supabase_initialized or not supabase_client:
         raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
     try:
-        res = supabase_client.table('users').select('*').eq('username', username.strip()).limit(1).execute()
+        clean_user = username.strip()
+        # 1. Exact username match
+        res = supabase_client.table('users').select('*').eq('username', clean_user).limit(1).execute()
         if res.data and len(res.data) > 0:
             return SupabaseUser(res.data[0])
+            
+        # 2. Case-insensitive ilike match
+        res_ilike = supabase_client.table('users').select('*').ilike('username', clean_user).limit(1).execute()
+        if res_ilike.data and len(res_ilike.data) > 0:
+            return SupabaseUser(res_ilike.data[0])
+            
+        # 3. Fallback: all users case-insensitive search
+        all_u = get_all_users()
+        for u in all_u:
+            if u.username.lower() == clean_user.lower():
+                return u
         return None
     except Exception as e:
         logger.error(f"Error fetching user by username {username}: {e}")
