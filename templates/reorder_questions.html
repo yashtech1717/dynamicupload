@@ -96,10 +96,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize SortableJS for Mouse + Touch / Long Press Dragging
     const sortable = new Sortable(container, {
-        handle: '.drag-handle',
-        animation: 200,
-        delay: 50, // 50ms touch delay for mobile long press
-        delayOnTouchOnly: true,
+        animation: 180,
+        touchStartThreshold: 3,
         ghostClass: 'sortable-ghost',
         dragClass: 'sortable-drag',
         onEnd: function() {

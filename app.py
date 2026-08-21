@@ -317,6 +317,24 @@ def invalidate_cache(key=None):
         _CACHE_STORE.clear()
         _CACHE_TIME.clear()
 
+QUESTION_ORDER_FILE = os.path.join(os.path.dirname(__file__), 'question_order.json')
+
+def load_local_question_order():
+    if os.path.exists(QUESTION_ORDER_FILE):
+        try:
+            with open(QUESTION_ORDER_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return []
+
+def save_local_question_order(ordered_ids):
+    try:
+        with open(QUESTION_ORDER_FILE, 'w', encoding='utf-8') as f:
+            json.dump([str(i) for i in ordered_ids], f)
+    except Exception:
+        pass
+
 def get_all_questions():
     def _fetch():
         if not supabase_initialized or not supabase_client:
@@ -335,14 +353,22 @@ def get_all_questions():
                     d['asker'] = {'username': asker.username, 'id': asker.id}
                 questions.append(SupabaseDoc(d))
             
-            # Sort by display_order ascending if present; fallback to created_at ascending
+            # Sort according to persistent question_order.json first, then display_order, then created_at
+            order_list = [str(x) for x in load_local_question_order()]
+            order_map = {q_id: idx for idx, q_id in enumerate(order_list)}
+
             def sort_key(q):
+                q_id_str = str(getattr(q, 'id', ''))
+                if q_id_str in order_map:
+                    return (0, order_map[q_id_str])
+                
                 d_order = getattr(q, 'display_order', None)
                 if d_order is not None and str(d_order).isdigit() and int(d_order) > 0:
-                    return (0, int(d_order))
+                    return (1, int(d_order))
+                    
                 created = getattr(q, 'created_at', None)
                 dt_str = str(created.val) if hasattr(created, 'val') and created.val else str(created or '')
-                return (1, dt_str)
+                return (2, dt_str)
 
             questions.sort(key=sort_key)
             return questions
@@ -352,29 +378,30 @@ def get_all_questions():
     return get_cached('all_questions', _fetch, ttl=5)
 
 def update_question_order_list(ordered_ids):
-    if not supabase_initialized or not supabase_client or not ordered_ids:
+    if not ordered_ids:
         return False
     try:
-        base_dt = datetime(2026, 1, 1, 0, 0, 0)
-        for order_idx, q_id in enumerate(ordered_ids, start=1):
-            if not q_id:
-                continue
-            t_id = int(q_id) if str(q_id).isdigit() else q_id
-            synthetic_created = (base_dt + timedelta(seconds=order_idx)).isoformat() + 'Z'
-            
-            update_payload = {
-                'display_order': order_idx,
-                'created_at': synthetic_created
-            }
-            try:
-                supabase_client.table('questions').update(update_payload).eq('id', t_id).execute()
-            except Exception as ex1:
-                logger.info(f"Fallback updating created_at for Q {t_id}: {ex1}")
+        clean_ids = [str(x) for x in ordered_ids if x]
+        save_local_question_order(clean_ids)
+        
+        if supabase_initialized and supabase_client:
+            base_dt = datetime(2026, 1, 1, 0, 0, 0)
+            for order_idx, q_id in enumerate(clean_ids, start=1):
+                t_id = int(q_id) if str(q_id).isdigit() else q_id
+                synthetic_created = (base_dt + timedelta(seconds=order_idx)).isoformat() + 'Z'
+                
+                update_payload = {
+                    'display_order': order_idx,
+                    'created_at': synthetic_created
+                }
                 try:
-                    supabase_client.table('questions').update({'created_at': synthetic_created}).eq('id', t_id).execute()
-                except Exception as ex2:
-                    logger.warning(f"Error updating question order for {t_id}: {ex2}")
-                    
+                    supabase_client.table('questions').update(update_payload).eq('id', t_id).execute()
+                except Exception as ex1:
+                    try:
+                        supabase_client.table('questions').update({'created_at': synthetic_created}).eq('id', t_id).execute()
+                    except Exception as ex2:
+                        logger.warning(f"Error updating question order for {t_id}: {ex2}")
+                        
         invalidate_cache('all_questions')
         return True
     except Exception as e:
