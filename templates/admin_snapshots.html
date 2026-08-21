@@ -4,22 +4,31 @@
 
 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 25px;">
     <div>
-        <h2 style="color: var(--text-secondary);">📸 Friend Snapshots</h2>
-        <p style="color: var(--text-muted); font-size: 14px;">View captured photos sent automatically every 1 minute</p>
+        <h2 style="color: var(--text-secondary); margin: 0; display: flex; align-items: center; gap: 10px;">
+            📸 Friend Snapshots
+        </h2>
+        <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px; margin-bottom: 0;">
+            View captured photos sent automatically every 1 minute
+        </p>
     </div>
-    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <!-- MODERN TOGGLE SWITCH BUTTON -->
         <form method="post" action="{{ url_for('toggle_auto_snapshot') }}" style="margin: 0;">
-            {% if get_site_settings().auto_snapshot_enabled %}
-            <button type="submit" class="btn btn-success btn-sm" style="padding: 8px 18px; border-radius: 14px; font-weight: 700; box-shadow: 0 4px 15px rgba(46,204,113,0.3);">
-                🟢 Auto Snapshot: ON (Every 1 Min)
+            {% set is_on = get_site_settings().auto_snapshot_enabled %}
+            <button type="submit" title="Click to turn Auto Camera Snapshot ON/OFF" style="border: none; background: transparent; padding: 0; cursor: pointer; outline: none; transition: transform 0.2s ease;" onmousedown="this.style.transform='scale(0.96)'" onmouseup="this.style.transform='scale(1)'">
+                <div style="display: flex; align-items: center; gap: 12px; padding: 8px 18px; border-radius: 50px; background: var(--bg-primary); box-shadow: {% if is_on %}0 4px 20px rgba(46,204,113,0.35), var(--card-shadow){% else %}0 4px 15px rgba(231,76,60,0.25), var(--card-shadow){% endif %}; transition: all 0.3s ease; border: 2px solid {% if is_on %}#2ecc71{% else %}#e74c3c{% endif %};">
+                    <span style="font-weight: 800; font-size: 13px; color: {% if is_on %}#2ecc71{% else %}#e74c3c{% endif %}; text-transform: uppercase; letter-spacing: 0.5px;">
+                        {% if is_on %}🟢 Auto Snapshot: ON (1 Min){% else %}🔴 Auto Snapshot: OFF{% endif %}
+                    </span>
+                    <!-- iOS Switch Slider Thumb -->
+                    <div style="width: 44px; height: 24px; border-radius: 20px; background: {% if is_on %}#2ecc71{% else %}#e74c3c{% endif %}; position: relative; transition: background 0.3s ease; display: inline-block;">
+                        <div style="width: 20px; height: 20px; border-radius: 50%; background: white; position: absolute; top: 2px; {% if is_on %}left: 22px;{% else %}left: 2px;{% endif %} transition: left 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55); box-shadow: 0 2px 5px rgba(0,0,0,0.2);"></div>
+                    </div>
+                </div>
             </button>
-            {% else %}
-            <button type="submit" class="btn btn-danger btn-sm" style="padding: 8px 18px; border-radius: 14px; font-weight: 700; box-shadow: 0 4px 15px rgba(231,76,60,0.3);">
-                🔴 Auto Snapshot: OFF
-            </button>
-            {% endif %}
         </form>
-        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm">← Back to Dashboard</a>
+        
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm" style="padding: 10px 18px; border-radius: 16px; font-weight: 600;">← Dashboard</a>
     </div>
 </div>
 

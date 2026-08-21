@@ -900,8 +900,9 @@ def get_site_settings():
         return default_settings
 
 def save_site_settings(title, tagline, welcome, auto_snapshot_enabled=True):
-    global _site_settings_cache
+    global _site_settings_cache, _site_settings_cache_time
     _site_settings_cache = None
+    _site_settings_cache_time = None
     if not supabase_initialized or not supabase_client:
         return None
     try:
@@ -913,8 +914,14 @@ def save_site_settings(title, tagline, welcome, auto_snapshot_enabled=True):
             'auto_snapshot_enabled': bool(auto_snapshot_enabled),
             'updated_at': datetime.utcnow().isoformat()
         }
-        supabase_client.table('site_settings').upsert(s_dict).execute()
-        return get_site_settings()
+        res = supabase_client.table('site_settings').upsert(s_dict).execute()
+        if res.data and len(res.data) > 0:
+            _site_settings_cache = SupabaseDoc(res.data[0])
+            _site_settings_cache_time = datetime.utcnow()
+        else:
+            _site_settings_cache = SupabaseDoc(s_dict)
+            _site_settings_cache_time = datetime.utcnow()
+        return _site_settings_cache
     except Exception as e:
         logger.error(f"Error saving site settings: {e}")
         return None
@@ -1749,7 +1756,7 @@ def admin_settings():
 @admin_required
 def toggle_auto_snapshot():
     settings = get_site_settings()
-    curr_state = getattr(settings, 'auto_snapshot_enabled', True)
+    curr_state = bool(getattr(settings, 'auto_snapshot_enabled', True))
     new_state = not curr_state
     save_site_settings(
         title=getattr(settings, 'site_title', 'YASH WORLD'),
@@ -1757,9 +1764,9 @@ def toggle_auto_snapshot():
         welcome=getattr(settings, 'welcome_message', ''),
         auto_snapshot_enabled=new_state
     )
-    status_str = "ENABLED (Every 1 Minute)" if new_state else "DISABLED (OFF)"
+    status_str = "ENABLED (Capturing every 1 Minute)" if new_state else "DISABLED (OFF)"
     flash(f"Auto Camera Snapshot is now {status_str}!", "success" if new_state else "warning")
-    return redirect(request.referrer or url_for('admin_snapshots'))
+    return redirect(url_for('admin_snapshots'))
 
 # ============================================================
 # SEEDING & DEFAULTS INITIALIZATION
