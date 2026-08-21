@@ -259,21 +259,11 @@
         <!-- Direct Media Upload Section -->
         <div class="form-section" style="border-left: 4px solid #4f7cff;">
             <div class="form-section-title">
-                <h4>🎥 Question Media (Direct Device Upload)</h4>
+                <h4>🖼️ Question Media (Direct Device Upload)</h4>
                 <span class="badge badge-optional">Optional</span>
             </div>
             
-            <!-- Video File Input -->
-            <div class="form-group">
-                <label for="video">📹 Select Video File from Device</label>
-                <div class="file-input-wrapper">
-                    <input type="file" id="video" name="video" accept="video/*" onchange="previewMedia(this, 'video_preview')">
-                </div>
-                <div class="helper-text">Supports .mp4, .mov, .avi, .webm videos directly from your device</div>
-                <video id="video_preview" class="media-preview" controls style="max-height: 250px; width: 100%; margin-top: 12px; border-radius: 12px;"></video>
-            </div>
-            
-            <div class="form-row" style="margin-top: 16px;">
+            <div class="form-row">
                 <div class="form-group">
                     <label for="image">🖼️ Select Image File</label>
                     <div class="file-input-wrapper">
@@ -309,15 +299,7 @@
                     Answer Media Files (Direct Upload):
                 </p>
                 
-                <div class="form-group">
-                    <label for="answer_video">📹 Answer Video File from Device</label>
-                    <div class="file-input-wrapper">
-                        <input type="file" id="answer_video" name="answer_video" accept="video/*" onchange="previewMedia(this, 'answer_video_preview')">
-                    </div>
-                    <video id="answer_video_preview" class="media-preview" controls style="max-height: 200px; width: 100%; margin-top: 10px; border-radius: 10px;"></video>
-                </div>
-                
-                <div class="form-row" style="margin-top: 14px;">
+                <div class="form-row">
                     <div class="form-group">
                         <label for="answer_image">🖼️ Answer Image File</label>
                         <div class="file-input-wrapper">
