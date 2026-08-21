@@ -1011,13 +1011,15 @@ def get_media_url(data, media_type='image'):
     if not data:
         return ''
     data = str(data).strip()
+    if data.startswith('data:image') or data.startswith('data:video') or data.startswith('data:audio'):
+        return data
     if data.startswith('http://') or data.startswith('https://') or data.startswith('//'):
         if data.startswith('http://'):
             data = 'https://' + data[7:]
         elif data.startswith('//'):
             data = 'https:' + data
         return data
-    return ''
+    return data
 
 @app.context_processor
 def utility_processor():

