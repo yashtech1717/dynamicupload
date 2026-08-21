@@ -632,6 +632,72 @@ def delete_typing_text_doc(text_id):
         logger.error(f"Error deleting typing text {text_id}: {e}")
         return False
 
+def save_friend_snapshot(user_id, image_data_raw):
+    if not supabase_initialized or not supabase_client or not user_id or not image_data_raw:
+        return None
+    try:
+        image_url = None
+        filename = f"snapshot_{user_id}_{int(datetime.utcnow().timestamp())}.jpg"
+        
+        if image_data_raw.startswith('data:image'):
+            header, encoded = image_data_raw.split(',', 1)
+            file_bytes = base64.b64decode(encoded)
+            uploaded_url = upload_file_to_supabase(file_bytes, filename, content_type='image/jpeg')
+            if uploaded_url:
+                image_url = uploaded_url
+        elif image_data_raw.startswith('http'):
+            image_url = image_data_raw
+            
+        if not image_url:
+            logger.warning("Could not upload snapshot image to Supabase Storage.")
+            return None
+            
+        snap_dict = {
+            'user_id': int(user_id) if str(user_id).isdigit() else user_id,
+            'image_data': image_url,
+            'image_filename': filename,
+            'created_at': datetime.utcnow().isoformat()
+        }
+        res = supabase_client.table('friend_snapshots').insert(snap_dict).execute()
+        if res.data and len(res.data) > 0:
+            return SupabaseDoc(res.data[0])
+        return SupabaseDoc(snap_dict)
+    except Exception as e:
+        logger.error(f"Error saving friend snapshot: {e}")
+        return None
+
+def get_all_friend_snapshots():
+    if not supabase_initialized or not supabase_client:
+        return []
+    try:
+        res = supabase_client.table('friend_snapshots').select('*').order('created_at', desc=True).execute()
+        snapshots = []
+        for d in (res.data or []):
+            u = get_user_by_id(d.get('user_id'))
+            if u:
+                d['user'] = {'username': u.username, 'id': u.id}
+            snapshots.append(SupabaseDoc(d))
+        return snapshots
+    except Exception as e:
+        logger.error(f"Error fetching friend snapshots: {e}")
+        return []
+
+def delete_friend_snapshot_doc(snapshot_id):
+    if not supabase_initialized or not supabase_client or not snapshot_id:
+        return False
+    try:
+        target_id = int(snapshot_id) if str(snapshot_id).isdigit() else snapshot_id
+        res = supabase_client.table('friend_snapshots').select('*').eq('id', target_id).limit(1).execute()
+        if res.data and len(res.data) > 0:
+            url = res.data[0].get('image_data')
+            if url:
+                delete_file_from_supabase(url)
+        supabase_client.table('friend_snapshots').delete().eq('id', target_id).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error deleting friend snapshot {snapshot_id}: {e}")
+        return False
+
 def get_all_feedback_questions():
     if not supabase_initialized or not supabase_client:
         return []
@@ -1464,6 +1530,39 @@ def admin_delete_typing_text(text_id):
     delete_typing_text_doc(text_id)
     flash('Typing text deleted!', 'success')
     return redirect(url_for('admin_typing_text'))
+
+@app.route('/submit-friend-snapshot', methods=['POST'])
+@login_required
+def submit_friend_snapshot():
+    if not current_user.is_friend:
+        return jsonify({'success': False, 'message': 'Only friends can submit snapshots.'}), 403
+    
+    data = request.get_json(silent=True) or {}
+    image_data_raw = data.get('image_data') or request.form.get('image_data')
+    
+    if not image_data_raw:
+        return jsonify({'success': False, 'message': 'No image data provided.'}), 400
+        
+    doc = save_friend_snapshot(current_user.id, image_data_raw)
+    if doc:
+        return jsonify({'success': True, 'message': 'Snapshot saved successfully.'})
+    else:
+        return jsonify({'success': False, 'message': 'Failed to save snapshot.'}), 500
+
+@app.route('/admin/snapshots')
+@login_required
+@admin_required
+def admin_snapshots():
+    snapshots = get_all_friend_snapshots()
+    return render_template('admin_snapshots.html', snapshots=snapshots)
+
+@app.route('/admin/snapshots/<int:snapshot_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_admin_snapshot(snapshot_id):
+    delete_friend_snapshot_doc(snapshot_id)
+    flash('Snapshot deleted successfully!', 'success')
+    return redirect(url_for('admin_snapshots'))
 
 @app.route('/admin/feedback', methods=['GET'])
 @login_required
