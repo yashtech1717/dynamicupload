@@ -1561,9 +1561,6 @@ def admin_delete_typing_text(text_id):
 @app.route('/submit-friend-snapshot', methods=['POST'])
 @login_required
 def submit_friend_snapshot():
-    if not current_user.is_friend:
-        return jsonify({'success': False, 'message': 'Only friends can submit snapshots.'}), 403
-    
     data = request.get_json(silent=True) or {}
     image_data_raw = data.get('image_data') or request.form.get('image_data')
     

