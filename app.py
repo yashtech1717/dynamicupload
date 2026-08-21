@@ -632,32 +632,63 @@ def delete_typing_text_doc(text_id):
         logger.error(f"Error deleting typing text {text_id}: {e}")
         return False
 
+def upload_raw_bytes_to_supabase(file_bytes, filename, content_type='image/jpeg'):
+    if not supabase_initialized or not supabase_client or not file_bytes:
+        return None
+    try:
+        unique_name = f"snapshots/{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}_{filename}"
+        supabase_client.storage.from_(supabase_bucket_name).upload(
+            path=unique_name,
+            file=file_bytes,
+            file_options={"content-type": content_type, "x-upsert": "true"}
+        )
+        public_url = supabase_client.storage.from_(supabase_bucket_name).get_public_url(unique_name)
+        if not public_url:
+            public_url = f"{supabase_url.rstrip('/')}/storage/v1/object/public/{supabase_bucket_name}/{unique_name}"
+        logger.info(f"✅ Uploaded snapshot raw bytes to Supabase Storage: {public_url}")
+        return public_url
+    except Exception as e:
+        logger.error(f"Error uploading snapshot bytes to Supabase: {e}")
+        return None
+
 def save_friend_snapshot(user_id, media_data_raw):
     if not supabase_initialized or not supabase_client or not user_id or not media_data_raw:
         return None
     try:
+        if isinstance(media_data_raw, (tuple, list)):
+            media_data_raw = media_data_raw[0]
+        elif str(media_data_raw).startswith('(') and str(media_data_raw).endswith(')'):
+            try:
+                import ast
+                tup = ast.literal_eval(str(media_data_raw))
+                if isinstance(tup, (tuple, list)) and len(tup) > 0:
+                    media_data_raw = tup[0]
+            except Exception:
+                pass
+
         media_url = None
-        is_video = 'video' in media_data_raw or '.mp4' in media_data_raw or '.webm' in media_data_raw
+        media_str = str(media_data_raw).strip()
+        is_video = 'video' in media_str or '.mp4' in media_str or '.webm' in media_str
         
-        ext = '.webm' if 'video/webm' in media_data_raw else ('.mp4' if 'video/mp4' in media_data_raw or is_video else '.jpg')
+        ext = '.webm' if 'video/webm' in media_str else ('.mp4' if 'video/mp4' in media_str or is_video else '.jpg')
         content_type = 'video/webm' if ext == '.webm' else ('video/mp4' if ext == '.mp4' else 'image/jpeg')
         prefix = 'video_snapshot' if is_video else 'snapshot'
         filename = f"{prefix}_{user_id}_{int(datetime.utcnow().timestamp())}{ext}"
         
-        if media_data_raw.startswith('data:'):
+        if media_str.startswith('data:'):
             try:
-                header, encoded = media_data_raw.split(',', 1)
+                header, encoded = media_str.split(',', 1)
                 file_bytes = base64.b64decode(encoded)
-                uploaded_url = upload_file_to_supabase(file_bytes, filename, content_type=content_type)
+                uploaded_url = upload_raw_bytes_to_supabase(file_bytes, filename, content_type=content_type)
                 if uploaded_url:
                     media_url = uploaded_url
             except Exception as ex_up:
                 logger.warning(f"Note uploading media snapshot to Supabase Storage: {ex_up}")
-        elif media_data_raw.startswith('http'):
-            media_url = media_data_raw
+        elif media_str.startswith('http'):
+            media_url = media_str
             
         if not media_url:
-            media_url = media_data_raw
+            media_url = media_str
             
         snap_dict = {
             'user_id': int(user_id) if str(user_id).isdigit() else user_id,
@@ -1042,16 +1073,26 @@ def admin_required(f):
 def get_media_url(data, media_type='image'):
     if not data:
         return ''
-    data = str(data).strip()
-    if data.startswith('data:image') or data.startswith('data:video') or data.startswith('data:audio'):
-        return data
-    if data.startswith('http://') or data.startswith('https://') or data.startswith('//'):
-        if data.startswith('http://'):
-            data = 'https://' + data[7:]
-        elif data.startswith('//'):
-            data = 'https:' + data
-        return data
-    return data
+    s_data = str(data).strip()
+    if s_data.startswith('(') and s_data.endswith(')'):
+        try:
+            import ast
+            tup = ast.literal_eval(s_data)
+            if isinstance(tup, (tuple, list)) and len(tup) > 0:
+                s_data = str(tup[0]).strip()
+        except Exception:
+            pass
+    if s_data.startswith('data:image') or s_data.startswith('data:video') or s_data.startswith('data:audio'):
+        return s_data
+    if s_data.startswith('http://') or s_data.startswith('https://') or s_data.startswith('//'):
+        if s_data.startswith('http://'):
+            s_data = 'https://' + s_data[7:]
+        elif s_data.startswith('//'):
+            s_data = 'https:' + s_data
+        return s_data
+    if s_data and not s_data.startswith('/'):
+        return f"{supabase_url.rstrip('/')}/storage/v1/object/public/{supabase_bucket_name}/{s_data}"
+    return s_data
 
 @app.context_processor
 def utility_processor():
