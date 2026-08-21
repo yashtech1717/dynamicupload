@@ -351,6 +351,36 @@ def get_all_questions():
             raise RuntimeError(f"Supabase read error fetching all questions: {e}")
     return get_cached('all_questions', _fetch, ttl=5)
 
+def update_question_order_list(ordered_ids):
+    if not supabase_initialized or not supabase_client or not ordered_ids:
+        return False
+    try:
+        base_dt = datetime(2026, 1, 1, 0, 0, 0)
+        for order_idx, q_id in enumerate(ordered_ids, start=1):
+            if not q_id:
+                continue
+            t_id = int(q_id) if str(q_id).isdigit() else q_id
+            synthetic_created = (base_dt + timedelta(seconds=order_idx)).isoformat() + 'Z'
+            
+            update_payload = {
+                'display_order': order_idx,
+                'created_at': synthetic_created
+            }
+            try:
+                supabase_client.table('questions').update(update_payload).eq('id', t_id).execute()
+            except Exception as ex1:
+                logger.info(f"Fallback updating created_at for Q {t_id}: {ex1}")
+                try:
+                    supabase_client.table('questions').update({'created_at': synthetic_created}).eq('id', t_id).execute()
+                except Exception as ex2:
+                    logger.warning(f"Error updating question order for {t_id}: {ex2}")
+                    
+        invalidate_cache('all_questions')
+        return True
+    except Exception as e:
+        logger.error(f"Error in update_question_order_list: {e}")
+        return False
+
 def insert_question_at_position(q_data, target_pos='last'):
     all_qs = get_all_questions()
     q_id = q_data.get('id')
@@ -383,29 +413,8 @@ def insert_question_at_position(q_data, target_pos='last'):
     remaining = [q for q in remaining if str(getattr(q, 'id', '')) != str(saved_id)]
     remaining.insert(idx, saved_q)
     
-    base_dt = datetime(2026, 1, 1, 0, 0, 0)
-    
-    for order_idx, q in enumerate(remaining, start=1):
-        curr_id = getattr(q, 'id', None)
-        if curr_id and supabase_client:
-            try:
-                t_id = int(curr_id) if str(curr_id).isdigit() else curr_id
-                synthetic_created = (base_dt + timedelta(seconds=order_idx)).isoformat() + 'Z'
-                
-                update_payload = {
-                    'display_order': order_idx,
-                    'created_at': synthetic_created
-                }
-                
-                try:
-                    supabase_client.table('questions').update(update_payload).eq('id', t_id).execute()
-                except Exception as ex1:
-                    logger.info(f"Fallback updating created_at only for Q {t_id}: {ex1}")
-                    supabase_client.table('questions').update({'created_at': synthetic_created}).eq('id', t_id).execute()
-            except Exception as e:
-                logger.warning(f"Error re-indexing Q {curr_id}: {e}")
-                
-    invalidate_cache('all_questions')
+    ordered_ids = [getattr(q, 'id', None) for q in remaining if getattr(q, 'id', None)]
+    update_question_order_list(ordered_ids)
     return saved_q
 
 def get_question_by_id(question_id):
@@ -1808,6 +1817,31 @@ def toggle_auto_snapshot():
     status_str = "ENABLED (Capturing every 1 Minute)" if new_state else "DISABLED (OFF)"
     flash(f"Auto Camera Snapshot is now {status_str}!", "success" if new_state else "warning")
     return redirect(url_for('admin_snapshots'))
+
+@app.route('/admin/reorder-questions')
+@login_required
+@admin_required
+def reorder_questions():
+    questions = get_all_questions()
+    return render_template('reorder_questions.html', questions=questions)
+
+@app.route('/admin/update-question-order', methods=['POST'])
+@login_required
+@admin_required
+def update_question_order():
+    data = request.get_json(silent=True) or {}
+    ordered_ids = data.get('ordered_ids', [])
+    if not ordered_ids and request.form.getlist('ordered_ids'):
+        ordered_ids = request.form.getlist('ordered_ids')
+        
+    if not ordered_ids:
+        return jsonify({'success': False, 'message': 'No question order provided.'}), 400
+
+    success = update_question_order_list(ordered_ids)
+    if success:
+        return jsonify({'success': True, 'message': 'Question order updated successfully!'})
+    else:
+        return jsonify({'success': False, 'message': 'Failed to update question order.'}), 500
 
 # ============================================================
 # SEEDING & DEFAULTS INITIALIZATION

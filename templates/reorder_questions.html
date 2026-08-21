@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- SortableJS for Touch, Long-Press & Mouse Drag-and-Drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+
+<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 25px;">
+    <div>
+        <h2 style="color: var(--text-secondary); margin: 0; display: flex; align-items: center; gap: 10px;">
+            🔀 Drag & Reorder Questions
+        </h2>
+        <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px; margin-bottom: 0;">
+            Long press or drag cards up/down to change question display order
+        </p>
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <button id="saveOrderBtn" onclick="saveNewOrder()" class="btn btn-success btn-sm" style="padding: 10px 20px; border-radius: 16px; font-weight: 700; box-shadow: 0 4px 15px rgba(46,204,113,0.3);">
+            💾 Save New Order
+        </button>
+        <a href="{{ url_for('admin_panel') }}" class="btn btn-secondary btn-sm" style="padding: 10px 18px; border-radius: 16px; font-weight: 600;">← Admin Panel</a>
+    </div>
+</div>
+
+<div id="statusToast" style="display: none; padding: 12px 20px; border-radius: 16px; background: #2ecc71; color: white; font-weight: 700; text-align: center; margin-bottom: 20px; box-shadow: 0 6px 20px rgba(46,204,113,0.3); transition: all 0.3s ease;">
+    ✅ Question order updated & saved!
+</div>
+
+{% if questions %}
+<div id="questionsContainer" style="display: flex; flex-direction: column; gap: 14px;">
+    {% for q in questions %}
+    <div class="question-card-item" data-id="{{ q.id }}" style="display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-radius: 20px; background: var(--bg-primary); box-shadow: var(--card-shadow); transition: all 0.25s ease; border-left: 4px solid var(--accent-blue); touch-action: manipulation;">
+        
+        <div style="display: flex; align-items: center; gap: 15px; flex: 1; min-width: 0;">
+            <!-- Drag Handle -->
+            <div class="drag-handle" style="cursor: grab; font-size: 22px; color: var(--text-muted); padding: 6px 12px; border-radius: 12px; background: rgba(0,0,0,0.03); user-select: none; -webkit-user-select: none;">
+                ⋮⋮
+            </div>
+
+            <!-- Position Badge -->
+            <div class="pos-badge" style="width: 42px; height: 42px; border-radius: 14px; background: var(--gradient-primary); color: white; font-weight: 800; font-size: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 12px rgba(79,124,255,0.3);">
+                #{{ loop.index }}
+            </div>
+
+            <!-- Question Info -->
+            <div style="overflow: hidden; text-overflow: ellipsis;">
+                <div style="font-weight: 700; font-size: 16px; color: var(--text-primary); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    {{ q.text }}
+                </div>
+                <div style="font-size: 12px; color: var(--text-muted); display: flex; gap: 10px; align-items: center;">
+                    <span>Asked by <strong style="color: var(--accent-blue);">{{ q.asker.username if q.asker else 'Admin' }}</strong></span>
+                    {% if q.image_data %}<span>🖼️ Image</span>{% endif %}
+                    {% if q.audio_data %}<span>🎵 Audio</span>{% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Movement Buttons (Mobile Friendly) -->
+        <div style="display: flex; gap: 6px; align-items: center; margin-left: 12px; flex-shrink: 0;">
+            <button type="button" onclick="moveCard(this, 'up')" class="btn btn-secondary btn-sm" style="padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 700;" title="Move Up">
+                ⬆️
+            </button>
+            <button type="button" onclick="moveCard(this, 'down')" class="btn btn-secondary btn-sm" style="padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 700;" title="Move Down">
+                ⬇️
+            </button>
+        </div>
+
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div style="text-align: center; padding: 50px 20px; border-radius: 20px; background: var(--bg-primary); box-shadow: var(--card-shadow);">
+    <p style="color: var(--text-muted); font-size: 16px;">No questions asked yet.</p>
+    <a href="{{ url_for('ask_question') }}" class="btn btn-primary btn-sm">✏️ Ask a Question</a>
+</div>
+{% endif %}
+
+<style>
+.sortable-ghost {
+    opacity: 0.4;
+    background: var(--accent-blue) !important;
+    transform: scale(0.98);
+}
+.sortable-drag {
+    box-shadow: 0 15px 35px rgba(0,0,0,0.2) !important;
+}
+.drag-handle:active {
+    cursor: grabbing !important;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('questionsContainer');
+    if (!container) return;
+
+    // Initialize SortableJS for Mouse + Touch / Long Press Dragging
+    const sortable = new Sortable(container, {
+        handle: '.drag-handle',
+        animation: 200,
+        delay: 50, // 50ms touch delay for mobile long press
+        delayOnTouchOnly: true,
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onEnd: function() {
+            updateBadges();
+            autoSaveOrder();
+        }
+    });
+});
+
+function updateBadges() {
+    const cards = document.querySelectorAll('.question-card-item');
+    cards.forEach((card, idx) => {
+        const badge = card.querySelector('.pos-badge');
+        if (badge) {
+            badge.textContent = '#' + (idx + 1);
+        }
+    });
+}
+
+function moveCard(btn, direction) {
+    const card = btn.closest('.question-card-item');
+    if (!card) return;
+
+    if (direction === 'up' && card.previousElementSibling) {
+        card.parentNode.insertBefore(card, card.previousElementSibling);
+    } else if (direction === 'down' && card.nextElementSibling) {
+        card.parentNode.insertBefore(card.nextElementSibling, card);
+    }
+
+    updateBadges();
+    autoSaveOrder();
+}
+
+function getOrderedIds() {
+    const cards = document.querySelectorAll('.question-card-item');
+    const ids = [];
+    cards.forEach(card => {
+        const id = card.getAttribute('data-id');
+        if (id) ids.push(id);
+    });
+    return ids;
+}
+
+let saveTimer = null;
+function autoSaveOrder() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveNewOrder, 400);
+}
+
+function saveNewOrder() {
+    const ids = getOrderedIds();
+    if (ids.length === 0) return;
+
+    const saveBtn = document.getElementById('saveOrderBtn');
+    if (saveBtn) saveBtn.textContent = '⏳ Saving...';
+
+    fetch('{{ url_for("update_question_order") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ordered_ids: ids })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (saveBtn) saveBtn.textContent = '💾 Save New Order';
+        
+        const toast = document.getElementById('statusToast');
+        if (toast) {
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2500);
+        }
+    })
+    .catch(() => {
+        if (saveBtn) saveBtn.textContent = '💾 Save New Order';
+    });
+}
+</script>
+
+{% endblock %}

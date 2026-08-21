@@ -35,6 +35,7 @@
 
 <!-- Quick Actions -->
 <div style="display: flex; gap: 15px; flex-wrap: wrap; margin: 20px 0;">
+    <a href="{{ url_for('reorder_questions') }}" class="btn" style="background: linear-gradient(135deg, #f39c12, #e67e22); color: white; flex: 1; min-width: 140px; text-align: center; box-shadow: 0 8px 25px rgba(243,156,18,0.4);">🔀 Reorder Questions</a>
     <a href="{{ url_for('admin_typing_text') }}" class="btn" style="background: var(--accent-purple); color: white; flex: 1; min-width: 140px; text-align: center; box-shadow: 0 8px 25px rgba(155,89,182,0.4);">✏️ Typing Text</a>
     <a href="{{ url_for('admin_add_question') }}" class="btn btn-primary" style="flex: 1; min-width: 140px; text-align: center;">➕ Add Question</a>
     <a href="{{ url_for('admin_music') }}" class="btn" style="background: var(--accent-yellow); color: white; flex: 1; min-width: 140px; text-align: center; box-shadow: 0 8px 25px rgba(243,156,18,0.4);">🎵 Music</a>
