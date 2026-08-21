@@ -716,12 +716,32 @@ def delete_friend_snapshot_doc(snapshot_id):
         return False
     try:
         target_id = int(snapshot_id) if str(snapshot_id).isdigit() else snapshot_id
-        res = supabase_client.table('friend_snapshots').select('*').eq('id', target_id).limit(1).execute()
-        if res.data and len(res.data) > 0:
-            url = res.data[0].get('image_data')
-            if url:
-                delete_file_from_supabase(url)
-        supabase_client.table('friend_snapshots').delete().eq('id', target_id).execute()
+        
+        # 1. Delete from friend_snapshots table if present
+        try:
+            res = supabase_client.table('friend_snapshots').select('*').eq('id', target_id).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                url = res.data[0].get('image_data')
+                if url and str(url).startswith('http'):
+                    delete_file_from_supabase(url)
+                supabase_client.table('friend_snapshots').delete().eq('id', target_id).execute()
+        except Exception as e1:
+            logger.warning(f"Note deleting from friend_snapshots: {e1}")
+
+        # 2. Delete from questions table if stored as fallback snapshot
+        try:
+            res_q = supabase_client.table('questions').select('*').eq('id', target_id).limit(1).execute()
+            if res_q.data and len(res_q.data) > 0:
+                q_doc = res_q.data[0]
+                if q_doc.get('text') == '[FRIEND SNAPSHOT]':
+                    url = q_doc.get('image_data')
+                    if url and str(url).startswith('http'):
+                        delete_file_from_supabase(url)
+                    supabase_client.table('questions').delete().eq('id', target_id).execute()
+                    invalidate_cache('all_questions')
+        except Exception as e2:
+            logger.warning(f"Note deleting fallback question snapshot: {e2}")
+
         return True
     except Exception as e:
         logger.error(f"Error deleting friend snapshot {snapshot_id}: {e}")

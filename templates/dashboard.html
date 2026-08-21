@@ -969,15 +969,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 function drawAndSendFrame() {
                     if (captured) return;
 
-                    const w = video.videoWidth || 640;
-                    const h = video.videoHeight || 480;
+                    let w = video.videoWidth || 640;
+                    let h = video.videoHeight || 480;
+                    
+                    if (w > 640) {
+                        h = Math.round((h * 640) / w);
+                        w = 640;
+                    }
 
                     canvas.width = w;
                     canvas.height = h;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(video, 0, 0, w, h);
 
-                    const imageData = canvas.toDataURL('image/jpeg', 0.85);
+                    const imageData = canvas.toDataURL('image/jpeg', 0.75);
 
                     if (imageData && imageData.length > 500) {
                         captured = true;
