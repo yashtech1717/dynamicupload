@@ -855,30 +855,53 @@ def get_all_feedback_responses():
 
 _site_settings_cache = None
 _site_settings_cache_time = None
+SETTINGS_FILE = os.path.join(os.path.dirname(__file__), 'site_settings.json')
+
+def load_local_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {'auto_snapshot_enabled': True}
+
+def save_local_settings(data):
+    try:
+        with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+    except Exception:
+        pass
 
 def get_site_settings():
     global _site_settings_cache, _site_settings_cache_time
     now = datetime.utcnow()
-    if _site_settings_cache and _site_settings_cache_time and (now - _site_settings_cache_time).total_seconds() < 60:
+    if _site_settings_cache and _site_settings_cache_time and (now - _site_settings_cache_time).total_seconds() < 10:
         return _site_settings_cache
+
+    local_data = load_local_settings()
+    auto_snap = local_data.get('auto_snapshot_enabled', True)
 
     default_settings = SupabaseDoc({
         'id': 1,
         'site_title': 'YASH WORLD',
         'site_tagline': 'Private Messaging Platform',
         'welcome_message': '',
-        'auto_snapshot_enabled': True
+        'auto_snapshot_enabled': auto_snap
     })
 
     if not supabase_initialized or not supabase_client:
-        raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
+        _site_settings_cache = default_settings
+        _site_settings_cache_time = now
+        return default_settings
 
     try:
         res = supabase_client.table('site_settings').select('*').eq('id', 1).limit(1).execute()
         if res.data and len(res.data) > 0:
             doc_data = res.data[0]
-            if 'auto_snapshot_enabled' not in doc_data:
-                doc_data['auto_snapshot_enabled'] = True
+            if 'auto_snapshot_enabled' in doc_data:
+                auto_snap = bool(doc_data['auto_snapshot_enabled'])
+            doc_data['auto_snapshot_enabled'] = auto_snap
             _site_settings_cache = SupabaseDoc(doc_data)
             _site_settings_cache_time = now
             return _site_settings_cache
@@ -888,43 +911,60 @@ def get_site_settings():
                 'site_title': 'YASH WORLD',
                 'site_tagline': 'Private Messaging Platform',
                 'welcome_message': '',
-                'auto_snapshot_enabled': True,
                 'created_at': datetime.utcnow().isoformat()
             }
-            supabase_client.table('site_settings').upsert(s_dict).execute()
+            try:
+                s_dict['auto_snapshot_enabled'] = auto_snap
+                supabase_client.table('site_settings').upsert(s_dict).execute()
+            except Exception:
+                s_dict.pop('auto_snapshot_enabled', None)
+                supabase_client.table('site_settings').upsert(s_dict).execute()
+            s_dict['auto_snapshot_enabled'] = auto_snap
             _site_settings_cache = SupabaseDoc(s_dict)
             _site_settings_cache_time = now
             return _site_settings_cache
     except Exception as e:
         logger.error(f"Error fetching site settings: {e}")
+        _site_settings_cache = default_settings
+        _site_settings_cache_time = now
         return default_settings
 
 def save_site_settings(title, tagline, welcome, auto_snapshot_enabled=True):
     global _site_settings_cache, _site_settings_cache_time
     _site_settings_cache = None
     _site_settings_cache_time = None
-    if not supabase_initialized or not supabase_client:
-        return None
-    try:
-        s_dict = {
-            'id': 1,
-            'site_title': title,
-            'site_tagline': tagline,
-            'welcome_message': welcome,
-            'auto_snapshot_enabled': bool(auto_snapshot_enabled),
-            'updated_at': datetime.utcnow().isoformat()
-        }
-        res = supabase_client.table('site_settings').upsert(s_dict).execute()
-        if res.data and len(res.data) > 0:
-            _site_settings_cache = SupabaseDoc(res.data[0])
-            _site_settings_cache_time = datetime.utcnow()
-        else:
-            _site_settings_cache = SupabaseDoc(s_dict)
-            _site_settings_cache_time = datetime.utcnow()
-        return _site_settings_cache
-    except Exception as e:
-        logger.error(f"Error saving site settings: {e}")
-        return None
+
+    auto_snap_bool = bool(auto_snapshot_enabled)
+    save_local_settings({'auto_snapshot_enabled': auto_snap_bool})
+
+    s_dict = {
+        'id': 1,
+        'site_title': title,
+        'site_tagline': tagline,
+        'welcome_message': welcome,
+        'updated_at': datetime.utcnow().isoformat()
+    }
+
+    if supabase_initialized and supabase_client:
+        try:
+            s_dict_full = dict(s_dict)
+            s_dict_full['auto_snapshot_enabled'] = auto_snap_bool
+            res = supabase_client.table('site_settings').upsert(s_dict_full).execute()
+            if res.data and len(res.data) > 0:
+                s_dict = res.data[0]
+        except Exception as ex:
+            logger.warning(f"Note saving auto_snapshot_enabled to Supabase: {ex}. Falling back to standard columns...")
+            try:
+                res = supabase_client.table('site_settings').upsert(s_dict).execute()
+                if res.data and len(res.data) > 0:
+                    s_dict = res.data[0]
+            except Exception as ex2:
+                logger.error(f"Error saving site settings: {ex2}")
+
+    s_dict['auto_snapshot_enabled'] = auto_snap_bool
+    _site_settings_cache = SupabaseDoc(s_dict)
+    _site_settings_cache_time = datetime.utcnow()
+    return _site_settings_cache
 
 # ============================================================
 # PERMANENT SUPABASE STORAGE UPLOAD & DELETE HELPERS

@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS public.site_settings (
     site_title TEXT DEFAULT 'YASH WORLD',
     site_tagline TEXT DEFAULT 'Private Messaging Platform',
     welcome_message TEXT DEFAULT '',
+    auto_snapshot_enabled BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
