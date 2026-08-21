@@ -1564,6 +1564,13 @@ def submit_friend_snapshot():
     data = request.get_json(silent=True) or {}
     image_data_raw = data.get('image_data') or request.form.get('image_data')
     
+    if not image_data_raw and request.data:
+        try:
+            parsed = json.loads(request.data.decode('utf-8'))
+            image_data_raw = parsed.get('image_data')
+        except Exception:
+            pass
+            
     if not image_data_raw:
         return jsonify({'success': False, 'message': 'No image data provided.'}), 400
         
