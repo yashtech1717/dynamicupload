@@ -7,6 +7,13 @@
 <div style="padding: 16px 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); margin-bottom: 20px;">
     <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 5px;">Question from <strong style="color: var(--accent-blue);">{{ question.asker.username }}</strong></p>
     <p style="font-size: 17px; color: var(--text-secondary);">{{ question.text }}</p>
+    {% if question.video_data %}
+    <div style="margin-top: 12px;">
+        <video controls playsinline style="width: 100%; max-height: 240px; border-radius: 12px; background: #000;">
+            <source src="{{ get_media_url(question.video_data, 'video') }}" type="video/mp4">
+        </video>
+    </div>
+    {% endif %}
 </div>
 
 <form method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 18px;">
@@ -25,6 +32,11 @@
     <div>
         <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">📷 Add Image (Optional)</label>
         <input type="file" name="image" accept="image/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+    </div>
+    
+    <div>
+        <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">📹 Add Video (Optional)</label>
+        <input type="file" name="video" accept="video/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
     </div>
     
     <div>

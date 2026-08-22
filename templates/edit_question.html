@@ -42,10 +42,14 @@
             <h4 style="color: var(--text-secondary); margin-bottom: 12px;">📱 Upload Media Directly from Device</h4>
             <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 15px;">Select new files directly from your phone/computer file system to replace or add media.</p>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px;">
                 <div>
                     <label style="font-weight: 600; font-size: 12px; display: block; margin-bottom: 4px;">🖼️ Image File</label>
                     <input type="file" name="image" accept="image/*" style="font-size: 12px; width: 100%;">
+                </div>
+                <div>
+                    <label style="font-weight: 600; font-size: 12px; display: block; margin-bottom: 4px;">📹 Video File</label>
+                    <input type="file" name="video" accept="video/*" style="font-size: 12px; width: 100%;">
                 </div>
                 <div>
                     <label style="font-weight: 600; font-size: 12px; display: block; margin-bottom: 4px;">🎵 Audio File</label>

@@ -263,7 +263,7 @@
                 <span class="badge badge-optional">Optional</span>
             </div>
             
-            <div class="form-row">
+            <div class="form-row" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                 <div class="form-group">
                     <label for="image">🖼️ Select Image File</label>
                     <div class="file-input-wrapper">
@@ -272,6 +272,13 @@
                     <img id="image_preview" class="media-preview" style="max-height: 150px; margin-top: 10px; border-radius: 10px;" />
                 </div>
                 
+                <div class="form-group">
+                    <label for="video">📹 Select Video File</label>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="video" name="video" accept="video/*">
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label for="audio">🎵 Select Audio File</label>
                     <div class="file-input-wrapper">
@@ -299,11 +306,18 @@
                     Answer Media Files (Direct Upload):
                 </p>
                 
-                <div class="form-row">
+                <div class="form-row" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                     <div class="form-group">
                         <label for="answer_image">🖼️ Answer Image File</label>
                         <div class="file-input-wrapper">
                             <input type="file" id="answer_image" name="answer_image" accept="image/*">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="answer_video">📹 Answer Video File</label>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="answer_video" name="answer_video" accept="video/*">
                         </div>
                     </div>
                     
