@@ -2143,6 +2143,31 @@ def admin_reels():
     reels = get_all_reels()
     return render_template('admin_reels.html', reels=reels)
 
+@app.route('/admin/reels/upload-ajax', methods=['POST'])
+@login_required
+@admin_required
+def admin_reels_upload_ajax():
+    title = request.form.get('title', 'Video Reel').strip()
+    video_url_input = request.form.get('video_url', '').strip()
+    uploaded_url = None
+
+    if 'video' in request.files:
+        file = request.files['video']
+        if file and file.filename:
+            res = upload_file_to_supabase(file, media_type='video')
+            if isinstance(res, tuple) and res[0]:
+                uploaded_url = res[0]
+            elif isinstance(res, str) and res:
+                uploaded_url = res
+
+    final_url = uploaded_url or video_url_input
+    if final_url:
+        reel_doc = save_reel_doc(title, final_url)
+        flash('New Video Reel uploaded successfully! 🎬', 'success')
+        return jsonify({'success': True, 'message': 'Reel uploaded successfully!', 'reel_id': reel_doc.id})
+    else:
+        return jsonify({'success': False, 'message': 'Please select a valid video file to upload or enter a video URL.'}), 400
+
 @app.route('/admin/reels/<reel_id>/delete', methods=['POST'])
 @login_required
 @admin_required
