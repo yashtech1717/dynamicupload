@@ -1883,7 +1883,37 @@ def delete_intro_video():
         intro_video_enabled=False
     )
     flash('Pre-login intro video deleted.', 'success')
-    return redirect(url_for('admin_settings'))
+    return redirect(request.referrer or url_for('admin_intro_video'))
+
+@app.route('/admin/intro-video', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_intro_video():
+    settings = get_site_settings()
+    
+    if request.method == 'POST':
+        intro_enabled = 'intro_video_enabled' in request.form
+        intro_url = request.form.get('intro_video_url', getattr(settings, 'intro_video_url', '')).strip()
+
+        if 'intro_video' in request.files:
+            file = request.files['intro_video']
+            if file and file.filename:
+                uploaded_url = upload_file_to_supabase(file, media_type='video')
+                if uploaded_url:
+                    intro_url = uploaded_url
+
+        save_site_settings(
+            title=getattr(settings, 'site_title', 'YASH WORLD'),
+            tagline=getattr(settings, 'site_tagline', 'Private Messaging Platform'),
+            welcome=getattr(settings, 'welcome_message', ''),
+            auto_snapshot_enabled=getattr(settings, 'auto_snapshot_enabled', True),
+            intro_video_url=intro_url,
+            intro_video_enabled=intro_enabled
+        )
+        flash('Pre-login intro video updated successfully!', 'success')
+        return redirect(url_for('admin_intro_video'))
+    
+    return render_template('admin_intro_video.html', settings=settings)
 
 @app.route('/admin/toggle-auto-snapshot', methods=['POST'])
 @login_required
