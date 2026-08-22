@@ -189,23 +189,34 @@
 </style>
 
 <div class="neu-wrapper">
-    <div class="neu-card">
-        {% set site_set = get_site_settings() %}
-        {% if site_set.intro_video_enabled and site_set.intro_video_url %}
-        <!-- Pre-Login Intro Video Card -->
-        <div style="margin-bottom: 25px; text-align: center;">
-            <div style="padding: 10px; border-radius: 22px; background: #ffffff; box-shadow: inset 4px 4px 10px #e2e8f0, inset -4px -4px 10px #ffffff; border: 1px solid #f1f5f9;">
-                <video controls autoplay muted playsinline webkit-playsinline loop style="width: 100%; max-height: 240px; border-radius: 16px; object-fit: cover; background: #000; display: block;">
-                    <source src="{{ get_media_url(site_set.intro_video_url, 'video') }}" type="video/mp4">
-                    Your browser does not support the video tag.
-                </video>
-            </div>
-            <div style="font-size: 12px; color: #64748b; font-weight: 700; margin-top: 8px;">
-                🎬 Intro Video
-            </div>
-        </div>
-        {% endif %}
+    {% set site_set = get_site_settings() %}
+    {% set has_intro_video = site_set.intro_video_enabled and site_set.intro_video_url %}
 
+    {% if has_intro_video %}
+    <!-- PRE-LOGIN INTRO VIDEO SCREEN (BEFORE LOGIN) -->
+    <div id="introVideoScreen" class="neu-card" style="text-align: center; max-width: 520px; animation: fadeIn 0.4s ease;">
+        <div style="margin-bottom: 16px;">
+            <span style="font-size: 13px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">
+                🎬 Welcome Video
+            </span>
+        </div>
+
+        <div style="padding: 10px; border-radius: 22px; background: #ffffff; box-shadow: inset 4px 4px 10px #e2e8f0, inset -4px -4px 10px #ffffff; border: 1px solid #f1f5f9; margin-bottom: 22px;">
+            <video id="preLoginVideo" controls autoplay muted playsinline webkit-playsinline loop style="width: 100%; max-height: 320px; border-radius: 16px; object-fit: cover; background: #000; display: block;">
+                <source src="{{ get_media_url(site_set.intro_video_url, 'video') }}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+
+        <button type="button" onclick="showLoginForm()" class="neu-submit-btn" style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); box-shadow: 0 8px 25px rgba(46,204,113,0.4);">
+            <span>👍 GOT IT</span>
+            <span class="neu-btn-arrow">→</span>
+        </button>
+    </div>
+    {% endif %}
+
+    <!-- LOGIN FORM CARD -->
+    <div id="loginCard" class="neu-card" style="{% if has_intro_video %}display: none;{% endif %}">
         <!-- Neumorphic Header -->
         <div class="neu-header">
             <div class="neu-avatar-box">🌟</div>
@@ -260,6 +271,37 @@
 </div>
 
 <script>
+function showLoginForm() {
+    const videoScreen = document.getElementById('introVideoScreen');
+    const loginCard = document.getElementById('loginCard');
+    const video = document.getElementById('preLoginVideo');
+
+    if (video) video.pause();
+
+    if (videoScreen) {
+        videoScreen.style.opacity = '0';
+        videoScreen.style.transform = 'scale(0.95)';
+        videoScreen.style.transition = 'all 0.3s ease';
+        setTimeout(() => {
+            videoScreen.style.display = 'none';
+            if (loginCard) {
+                loginCard.style.display = 'block';
+                loginCard.style.opacity = '0';
+                loginCard.style.transform = 'scale(0.95)';
+                loginCard.style.transition = 'all 0.3s ease';
+                setTimeout(() => {
+                    loginCard.style.opacity = '1';
+                    loginCard.style.transform = 'scale(1)';
+                    const uInput = document.getElementById('usernameInput');
+                    if (uInput) uInput.focus();
+                }, 50);
+            }
+        }, 300);
+    } else if (loginCard) {
+        loginCard.style.display = 'block';
+    }
+}
+
 function togglePasswordVisibility() {
     const pwdInput = document.getElementById('passwordInput');
     const toggleBtn = event.currentTarget;
