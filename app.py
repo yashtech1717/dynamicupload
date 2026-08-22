@@ -1288,14 +1288,25 @@ def get_media_url(data, media_type='image'):
         return data
     return data
 
+def get_supabase_config():
+    global supabase_initialized, supabase_url, supabase_key, supabase_bucket_name
+    if not supabase_initialized:
+        try:
+            init_supabase()
+        except Exception:
+            pass
+    return {
+        'url': supabase_url or '',
+        'key': supabase_key or '',
+        'bucket': supabase_bucket_name or 'media'
+    }
+
 @app.context_processor
 def utility_processor():
     return dict(
         get_site_settings=get_site_settings,
         get_media_url=get_media_url,
-        supabase_url=supabase_url,
-        supabase_key=supabase_key,
-        supabase_bucket=supabase_bucket_name
+        supabase_config=get_supabase_config()
     )
 
 @app.errorhandler(500)
