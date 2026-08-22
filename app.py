@@ -1092,57 +1092,91 @@ def save_site_settings(title, tagline, welcome, auto_snapshot_enabled=True, intr
     return _site_settings_cache
 
 # ============================================================
-# PERMANENT SUPABASE STORAGE UPLOAD & DELETE HELPERS
+# PERMANENT STORAGE UPLOAD & DELETE HELPERS (DUAL-LAYER CLOUD + LOCAL DISK FALLBACK)
 # ============================================================
+
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'uploads')
+
+def ensure_upload_dirs():
+    for sub in ['images', 'videos', 'audios']:
+        p = os.path.join(UPLOAD_FOLDER, sub)
+        os.makedirs(p, exist_ok=True)
+
+ensure_upload_dirs()
 
 def upload_file_to_supabase(file, media_type='image'):
     if not file or not file.filename:
         return None, None
 
-    if not supabase_initialized or not supabase_client:
-        raise RuntimeError("Supabase Storage is not initialized. Please verify SUPABASE_URL and SUPABASE_KEY environment variables.")
+    orig_name = file.filename or 'media'
+    ext = ''
+    if '.' in orig_name:
+        ext = '.' + orig_name.rsplit('.', 1)[-1].lower()
+    if not ext:
+        if media_type == 'video':
+            ext = '.mp4'
+        elif media_type == 'audio':
+            ext = '.mp3'
+        else:
+            ext = '.jpg'
 
-    filename = secure_filename(file.filename)
-    if not filename:
-        filename = f"{media_type}_{uuid.uuid4().hex[:6]}"
+    base_name = secure_filename(orig_name.rsplit('.', 1)[0] if '.' in orig_name else orig_name)
+    if not base_name:
+        base_name = f"{media_type}_{uuid.uuid4().hex[:6]}"
+    filename = f"{base_name}{ext}"
 
     file.seek(0)
     file_bytes = file.read()
     if not file_bytes:
-        raise RuntimeError(f"Uploaded file '{filename}' payload is empty (0 bytes).")
+        logger.warning(f"Uploaded file '{filename}' payload is empty (0 bytes).")
+        return None, None
 
     unique_name = f"{media_type}s/{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{filename}"
 
+    # Determine exact MIME type
+    content_type = file.content_type
+    if media_type == 'video':
+        if ext in ['.mp4', '.m4v']:
+            content_type = 'video/mp4'
+        elif ext in ['.mov', '.qt']:
+            content_type = 'video/quicktime'
+        elif ext == '.webm':
+            content_type = 'video/webm'
+        else:
+            content_type = content_type or 'video/mp4'
+
+    # Try uploading to Supabase Storage first
+    if supabase_initialized and supabase_client:
+        try:
+            supabase_client.storage.from_(supabase_bucket_name).upload(
+                path=unique_name,
+                file=file_bytes,
+                file_options={"content-type": content_type or 'application/octet-stream', "x-upsert": "true"}
+            )
+            public_url = supabase_client.storage.from_(supabase_bucket_name).get_public_url(unique_name)
+            if public_url:
+                logger.info(f"✅ Supabase Storage upload verified: {public_url}")
+                return public_url, filename
+        except Exception as e:
+            logger.warning(f"⚠️ Supabase Storage upload notice: {e}. Saving to local disk storage fallback...")
+
+    # Fallback: Save directly to local static uploads directory
     try:
-        content_type = file.content_type
-        if not content_type:
-            ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
-            content_type = f"{media_type}/{ext}" if ext else 'application/octet-stream'
-
-        # Upload file directly to Supabase Storage bucket
-        supabase_client.storage.from_(supabase_bucket_name).upload(
-            path=unique_name,
-            file=file_bytes,
-            file_options={"content-type": content_type, "x-upsert": "true"}
-        )
-
-        # Get Permanent Public URL
-        public_url = supabase_client.storage.from_(supabase_bucket_name).get_public_url(unique_name)
-        if not public_url:
-            public_url = f"{supabase_url.rstrip('/')}/storage/v1/object/public/{supabase_bucket_name}/{unique_name}"
-
-        logger.info(f"✅ Supabase Storage upload verified successfully on bucket '{supabase_bucket_name}': {public_url}")
-        return public_url, filename
-    except Exception as e:
-        logger.error(f"❌ Supabase Storage upload failed for {filename}: {e}")
-        raise RuntimeError(f"Supabase Storage upload failed: {str(e)}")
+        sub_dir = f"{media_type}s"
+        target_dir = os.path.join(UPLOAD_FOLDER, sub_dir)
+        os.makedirs(target_dir, exist_ok=True)
+        local_filename = f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}_{filename}"
+        local_path = os.path.join(target_dir, local_filename)
+        with open(local_path, 'wb') as f:
+            f.write(file_bytes)
+        local_url = f"/static/uploads/{sub_dir}/{local_filename}"
+        logger.info(f"✅ Local disk storage upload verified: {local_url}")
+        return local_url, filename
+    except Exception as ex:
+        logger.error(f"❌ Local disk storage upload failed: {ex}")
+        return None, None
 
 def process_media_uploads(request_files, media_specs):
-    """
-    Synchronously process multiple file uploads into Supabase Storage.
-    media_specs: list of tuples: (field_name, media_type, target_url_key, target_filename_key)
-    If ANY upload fails: immediately deletes all already uploaded files in this batch (preventing orphaned files) and raises RuntimeError.
-    """
     uploaded_records = {}
     uploaded_urls_to_cleanup = []
 
@@ -1157,7 +1191,7 @@ def process_media_uploads(request_files, media_specs):
                     uploaded_records[name_key] = fname
         return uploaded_records
     except Exception as e:
-        logger.error(f"⚠️ Rolling back batch Supabase Storage uploads due to error: {e}")
+        logger.error(f"⚠️ Rolling back batch uploads due to error: {e}")
         for url in uploaded_urls_to_cleanup:
             try:
                 delete_file_from_supabase(url)
@@ -1166,22 +1200,49 @@ def process_media_uploads(request_files, media_specs):
         raise e
 
 def delete_file_from_supabase(url_or_path):
-    if not supabase_initialized or not supabase_client or not url_or_path:
+    if not url_or_path:
         return False
-    try:
-        path = str(url_or_path)
-        if '/storage/v1/object/public/' in path:
-            path = path.split('/storage/v1/object/public/' + supabase_bucket_name + '/')[-1]
-        elif path.startswith('http://') or path.startswith('https://'):
-            parsed = urlparse(path)
-            path = parsed.path.split(f'/{supabase_bucket_name}/')[-1]
-            path = unquote(path)
+    url_str = str(url_or_path).strip()
 
-        supabase_client.storage.from_(supabase_bucket_name).remove([path])
-        logger.info(f"🗑️ Deleted file from Supabase Storage: {path}")
-        return True
-    except Exception as e:
-        logger.warning(f"Error deleting file from Supabase Storage: {e}")
+    # Clean tuple formatting if present
+    if url_str.startswith("('") or url_str.startswith('("'):
+        try:
+            import ast
+            parsed = ast.literal_eval(url_str)
+            if isinstance(parsed, (list, tuple)) and len(parsed) > 0:
+                url_str = str(parsed[0]).strip()
+        except Exception:
+            pass
+
+    # Delete local disk files
+    if url_str.startswith('/static/uploads/'):
+        try:
+            rel_path = url_str.lstrip('/')
+            abs_path = os.path.join(os.path.dirname(__file__), rel_path.replace('/', os.sep))
+            if os.path.exists(abs_path):
+                os.remove(abs_path)
+                logger.info(f"🗑️ Deleted local disk file: {abs_path}")
+                return True
+        except Exception as ex:
+            logger.warning(f"Error deleting local disk file {url_str}: {ex}")
+
+    # Delete Supabase Storage files
+    if supabase_initialized and supabase_client:
+        try:
+            path = url_str
+            if '/storage/v1/object/public/' in path:
+                path = path.split('/storage/v1/object/public/' + supabase_bucket_name + '/')[-1]
+            elif path.startswith('http://') or path.startswith('https://'):
+                parsed = urlparse(path)
+                path = parsed.path.split(f'/{supabase_bucket_name}/')[-1]
+                path = unquote(path)
+
+            if path and not path.startswith('http'):
+                supabase_client.storage.from_(supabase_bucket_name).remove([path])
+                logger.info(f"🗑️ Deleted file from Supabase Storage: {path}")
+                return True
+        except Exception as e:
+            logger.warning(f"Error deleting file from Supabase Storage: {e}")
     return False
 
 # ============================================================
@@ -2058,17 +2119,26 @@ def view_reels():
 def admin_reels():
     if request.method == 'POST':
         title = request.form.get('title', 'Video Reel').strip()
+        video_url_input = request.form.get('video_url', '').strip()
+        uploaded_url = None
+
         if 'video' in request.files:
             file = request.files['video']
             if file and file.filename:
                 res = upload_file_to_supabase(file, media_type='video')
-                uploaded_url = res[0] if isinstance(res, tuple) else res
-                if uploaded_url:
-                    save_reel_doc(title, uploaded_url)
-                    flash('New Video Reel uploaded successfully!', 'success')
-                    return redirect(url_for('admin_reels'))
-        flash('Please select a valid video file to upload.', 'danger')
-        return redirect(url_for('admin_reels'))
+                if isinstance(res, tuple) and res[0]:
+                    uploaded_url = res[0]
+                elif isinstance(res, str) and res:
+                    uploaded_url = res
+
+        final_url = uploaded_url or video_url_input
+        if final_url:
+            save_reel_doc(title, final_url)
+            flash('New Video Reel uploaded successfully! 🎬', 'success')
+            return redirect(url_for('admin_reels'))
+        else:
+            flash('Please select a valid video file to upload or enter a video URL.', 'danger')
+            return redirect(url_for('admin_reels'))
 
     reels = get_all_reels()
     return render_template('admin_reels.html', reels=reels)
