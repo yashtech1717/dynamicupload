@@ -260,6 +260,11 @@
         </div>
         
         <div class="form-group">
+            <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">📹 Upload Video (Optional)</label>
+            <input type="file" name="video" accept="video/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
+        </div>
+
+        <div class="form-group">
             <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎵 Upload Audio (Optional)</label>
             <input type="file" name="audio" accept="audio/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;">
         </div>
@@ -348,6 +353,8 @@ document.addEventListener('DOMContentLoaded', function() { toggleOptionsFields()
         </div>
         {% if question.image %}<div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Current Image</label><img src="{{ url_for('serve_media', filename=question.image) }}" alt="Current" style="max-width: 200px; border-radius: 12px;"></div>{% endif %}
         <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">📷 Upload New Image</label><input type="file" name="image" accept="image/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
+        {% if question.video_data or question.video %}<div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Current Video</label><video controls playsinline style="width: 100%; max-height: 200px; border-radius: 12px; background: #000;"><source src="{{ get_media_url(question.video_data or question.video, 'video') }}" type="video/mp4"></video></div>{% endif %}
+        <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">📹 Upload New Video</label><input type="file" name="video" accept="video/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
         {% if question.audio %}<div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Current Audio</label><audio controls style="width: 100%;"><source src="{{ url_for('serve_media', filename=question.audio) }}" type="audio/mpeg"></audio></div>{% endif %}
         <div class="form-group"><label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">🎵 Upload New Audio</label><input type="file" name="audio" accept="audio/*" style="width: 100%; padding: 14px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none;"></div>
         <div style="display: flex; gap: 15px; flex-wrap: wrap;"><button type="submit" class="btn btn-secondary">💾 Save Changes</button><a href="{{ url_for('admin_questions') }}" class="btn btn-danger">← Cancel</a></div>
