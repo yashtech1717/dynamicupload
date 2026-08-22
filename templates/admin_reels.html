@@ -94,7 +94,7 @@
                         🎬 {{ reel.title }}
                     </div>
                     <div style="font-size: 12px; color: var(--text-muted);">
-                        Uploaded: {{ reel.created_at[:10] if reel.created_at else 'N/A' }}
+                        Uploaded: {{ reel.created_at|format_datetime if reel.created_at else 'N/A' }}
                     </div>
                     <div style="margin-top: 10px; max-width: 320px;">
                         <video controls playsinline style="width: 100%; max-height: 160px; border-radius: 12px; background: #000;">
