@@ -190,6 +190,22 @@
 
 <div class="neu-wrapper">
     <div class="neu-card">
+        {% set site_set = get_site_settings() %}
+        {% if site_set.intro_video_enabled and site_set.intro_video_url %}
+        <!-- Pre-Login Intro Video Card -->
+        <div style="margin-bottom: 25px; text-align: center;">
+            <div style="padding: 10px; border-radius: 22px; background: #ffffff; box-shadow: inset 4px 4px 10px #e2e8f0, inset -4px -4px 10px #ffffff; border: 1px solid #f1f5f9;">
+                <video controls autoplay muted playsinline webkit-playsinline loop style="width: 100%; max-height: 240px; border-radius: 16px; object-fit: cover; background: #000; display: block;">
+                    <source src="{{ get_media_url(site_set.intro_video_url, 'video') }}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+            <div style="font-size: 12px; color: #64748b; font-weight: 700; margin-top: 8px;">
+                🎬 Intro Video
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Neumorphic Header -->
         <div class="neu-header">
             <div class="neu-avatar-box">🌟</div>

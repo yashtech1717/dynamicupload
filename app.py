@@ -901,12 +901,14 @@ def load_local_settings():
                 return json.load(f)
         except Exception:
             pass
-    return {'auto_snapshot_enabled': True}
+    return {'auto_snapshot_enabled': True, 'intro_video_url': '', 'intro_video_enabled': True}
 
 def save_local_settings(data):
     try:
+        curr = load_local_settings()
+        curr.update(data)
         with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f)
+            json.dump(curr, f)
     except Exception:
         pass
 
@@ -918,13 +920,17 @@ def get_site_settings():
 
     local_data = load_local_settings()
     auto_snap = local_data.get('auto_snapshot_enabled', True)
+    intro_vid_url = local_data.get('intro_video_url', '')
+    intro_vid_enabled = local_data.get('intro_video_enabled', True)
 
     default_settings = SupabaseDoc({
         'id': 1,
         'site_title': 'YASH WORLD',
         'site_tagline': 'Private Messaging Platform',
         'welcome_message': '',
-        'auto_snapshot_enabled': auto_snap
+        'auto_snapshot_enabled': auto_snap,
+        'intro_video_url': intro_vid_url,
+        'intro_video_enabled': intro_vid_enabled
     })
 
     if not supabase_initialized or not supabase_client:
@@ -936,9 +942,9 @@ def get_site_settings():
         res = supabase_client.table('site_settings').select('*').eq('id', 1).limit(1).execute()
         if res.data and len(res.data) > 0:
             doc_data = res.data[0]
-            if 'auto_snapshot_enabled' in doc_data:
-                auto_snap = bool(doc_data['auto_snapshot_enabled'])
-            doc_data['auto_snapshot_enabled'] = auto_snap
+            doc_data['auto_snapshot_enabled'] = bool(doc_data.get('auto_snapshot_enabled', auto_snap))
+            doc_data['intro_video_url'] = doc_data.get('intro_video_url') if doc_data.get('intro_video_url') is not None else intro_vid_url
+            doc_data['intro_video_enabled'] = bool(doc_data.get('intro_video_enabled', intro_vid_enabled))
             _site_settings_cache = SupabaseDoc(doc_data)
             _site_settings_cache_time = now
             return _site_settings_cache
@@ -948,15 +954,15 @@ def get_site_settings():
                 'site_title': 'YASH WORLD',
                 'site_tagline': 'Private Messaging Platform',
                 'welcome_message': '',
+                'auto_snapshot_enabled': auto_snap,
+                'intro_video_url': intro_vid_url,
+                'intro_video_enabled': intro_vid_enabled,
                 'created_at': datetime.utcnow().isoformat()
             }
             try:
-                s_dict['auto_snapshot_enabled'] = auto_snap
                 supabase_client.table('site_settings').upsert(s_dict).execute()
             except Exception:
-                s_dict.pop('auto_snapshot_enabled', None)
-                supabase_client.table('site_settings').upsert(s_dict).execute()
-            s_dict['auto_snapshot_enabled'] = auto_snap
+                pass
             _site_settings_cache = SupabaseDoc(s_dict)
             _site_settings_cache_time = now
             return _site_settings_cache
@@ -966,39 +972,42 @@ def get_site_settings():
         _site_settings_cache_time = now
         return default_settings
 
-def save_site_settings(title, tagline, welcome, auto_snapshot_enabled=True):
+def save_site_settings(title, tagline, welcome, auto_snapshot_enabled=True, intro_video_url='', intro_video_enabled=True):
     global _site_settings_cache, _site_settings_cache_time
     _site_settings_cache = None
     _site_settings_cache_time = None
 
     auto_snap_bool = bool(auto_snapshot_enabled)
-    save_local_settings({'auto_snapshot_enabled': auto_snap_bool})
+    intro_vid_bool = bool(intro_video_enabled)
+
+    save_local_settings({
+        'auto_snapshot_enabled': auto_snap_bool,
+        'intro_video_url': intro_video_url or '',
+        'intro_video_enabled': intro_vid_bool
+    })
 
     s_dict = {
         'id': 1,
         'site_title': title,
         'site_tagline': tagline,
         'welcome_message': welcome,
+        'auto_snapshot_enabled': auto_snap_bool,
+        'intro_video_url': intro_video_url or '',
+        'intro_video_enabled': intro_vid_bool,
         'updated_at': datetime.utcnow().isoformat()
     }
 
     if supabase_initialized and supabase_client:
         try:
-            s_dict_full = dict(s_dict)
-            s_dict_full['auto_snapshot_enabled'] = auto_snap_bool
-            res = supabase_client.table('site_settings').upsert(s_dict_full).execute()
+            res = supabase_client.table('site_settings').upsert(s_dict).execute()
             if res.data and len(res.data) > 0:
                 s_dict = res.data[0]
         except Exception as ex:
-            logger.warning(f"Note saving auto_snapshot_enabled to Supabase: {ex}. Falling back to standard columns...")
-            try:
-                res = supabase_client.table('site_settings').upsert(s_dict).execute()
-                if res.data and len(res.data) > 0:
-                    s_dict = res.data[0]
-            except Exception as ex2:
-                logger.error(f"Error saving site settings: {ex2}")
+            logger.warning(f"Note saving site settings to Supabase: {ex}. Falling back to local storage...")
 
     s_dict['auto_snapshot_enabled'] = auto_snap_bool
+    s_dict['intro_video_url'] = intro_video_url or ''
+    s_dict['intro_video_enabled'] = intro_vid_bool
     _site_settings_cache = SupabaseDoc(s_dict)
     _site_settings_cache_time = datetime.utcnow()
     return _site_settings_cache
@@ -1818,15 +1827,52 @@ def admin_settings():
     settings = get_site_settings()
     
     if request.method == 'POST':
-        title = request.form.get('site_title', 'YASH WORLD')
-        tagline = request.form.get('site_tagline', 'Private Messaging Platform')
-        welcome = request.form.get('welcome_message', '')
+        title = request.form.get('site_title', getattr(settings, 'site_title', 'YASH WORLD'))
+        tagline = request.form.get('site_tagline', getattr(settings, 'site_tagline', 'Private Messaging Platform'))
+        welcome = request.form.get('welcome_message', getattr(settings, 'welcome_message', ''))
         auto_snap = 'auto_snapshot_enabled' in request.form
-        save_site_settings(title, tagline, welcome, auto_snapshot_enabled=auto_snap)
+        intro_enabled = 'intro_video_enabled' in request.form
+        intro_url = request.form.get('intro_video_url', getattr(settings, 'intro_video_url', '')).strip()
+
+        if 'intro_video' in request.files:
+            file = request.files['intro_video']
+            if file and file.filename:
+                uploaded_url = upload_file_to_supabase(file, media_type='video')
+                if uploaded_url:
+                    intro_url = uploaded_url
+
+        save_site_settings(
+            title=title,
+            tagline=tagline,
+            welcome=welcome,
+            auto_snapshot_enabled=auto_snap,
+            intro_video_url=intro_url,
+            intro_video_enabled=intro_enabled
+        )
         flash('Settings updated successfully!', 'success')
         return redirect(url_for('admin_settings'))
     
     return render_template('admin_settings.html', settings=settings)
+
+@app.route('/admin/delete-intro-video', methods=['POST'])
+@login_required
+@admin_required
+def delete_intro_video():
+    settings = get_site_settings()
+    curr_url = getattr(settings, 'intro_video_url', '')
+    if curr_url and str(curr_url).startswith('http'):
+        delete_file_from_supabase(curr_url)
+    
+    save_site_settings(
+        title=getattr(settings, 'site_title', 'YASH WORLD'),
+        tagline=getattr(settings, 'site_tagline', 'Private Messaging Platform'),
+        welcome=getattr(settings, 'welcome_message', ''),
+        auto_snapshot_enabled=getattr(settings, 'auto_snapshot_enabled', True),
+        intro_video_url='',
+        intro_video_enabled=False
+    )
+    flash('Pre-login intro video deleted.', 'success')
+    return redirect(url_for('admin_settings'))
 
 @app.route('/admin/toggle-auto-snapshot', methods=['POST'])
 @login_required
