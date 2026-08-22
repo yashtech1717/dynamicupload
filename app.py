@@ -1604,13 +1604,24 @@ def admin_panel():
     answered_questions = sum(1 for q in questions if getattr(q, 'is_answered', False))
     unanswered_questions = total_questions - answered_questions
     recent_responses = get_all_replies()[:5]
+    total_users = len(get_all_users())
+    total_responses = len(get_all_replies())
+    total_feedback = len(get_all_feedback_responses())
+    typing_text = get_active_typing_text()
+    settings = get_site_settings()
     
     return render_template('admin_panel.html',
+        section='dashboard',
+        total_users=total_users,
         total_questions=total_questions,
+        total_responses=total_responses,
+        total_feedback=total_feedback,
         answered_questions=answered_questions,
         unanswered_questions=unanswered_questions,
         recent_responses=recent_responses,
-        questions=questions
+        questions=questions,
+        typing_text=typing_text,
+        settings=settings
     )
 
 @app.route('/admin/responses')
