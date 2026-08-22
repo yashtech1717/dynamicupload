@@ -488,10 +488,11 @@ def update_question_order_list(ordered_ids):
         return False
 
 def insert_question_at_position(q_data, target_pos='last'):
+    invalidate_cache('all_questions')
     all_qs = get_all_questions()
     q_id = q_data.get('id')
     
-    remaining = [q for q in all_qs if str(getattr(q, 'id', '')) != str(q_id) and getattr(q, 'id', None)]
+    remaining = [q for q in all_qs if str(getattr(q, 'id', '')) != str(q_id) and getattr(q, 'id', None) is not None]
     total_q = len(remaining)
     
     pos_str = str(target_pos).strip().lower()
@@ -511,6 +512,8 @@ def insert_question_at_position(q_data, target_pos='last'):
         except Exception:
             idx = total_q
             
+    q_data['display_order'] = idx + 1
+
     saved_q = save_question(q_data)
     if not saved_q:
         return None
@@ -519,8 +522,10 @@ def insert_question_at_position(q_data, target_pos='last'):
     remaining = [q for q in remaining if str(getattr(q, 'id', '')) != str(saved_id)]
     remaining.insert(idx, saved_q)
     
-    ordered_ids = [getattr(q, 'id', None) for q in remaining if getattr(q, 'id', None)]
+    ordered_ids = [str(getattr(q, 'id', '')) for q in remaining if getattr(q, 'id', None) is not None]
     update_question_order_list(ordered_ids)
+    
+    invalidate_cache('all_questions')
     return saved_q
 
 def get_question_by_id(question_id):
@@ -1709,11 +1714,13 @@ def edit_question(question_id):
             q_dict['audio_data'] = get_media_url(audio_url, 'audio')
             q_dict['audio_filename'] = request.form.get('audio_filename', 'external_audio')
         
-        question_position = request.form.get('question_position')
+        question_position = request.form.get('question_position') or request.form.get('position') or request.form.get('display_order') or request.form.get('order')
         if question_position:
             insert_question_at_position(q_dict, target_pos=question_position)
         else:
             save_question(q_dict)
+
+        invalidate_cache('all_questions')
             
         flash('Question updated successfully!', 'success')
         return redirect(url_for('dashboard'))
