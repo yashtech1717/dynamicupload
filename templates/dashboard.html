@@ -134,6 +134,9 @@
         </p>
     </div>
     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <a href="{{ url_for('view_reels') }}" class="btn btn-lg" style="display: flex; align-items: center; gap: 8px; padding: 14px 28px; border-radius: 16px; background: linear-gradient(135deg, #ff007f, #7928ca); color: white; text-decoration: none; transition: all 0.3s ease; box-shadow: 0 8px 25px rgba(255,0,127,0.35); font-weight: 700; font-size: 16px;">
+            <span style="font-size: 20px;">🎬</span> Watch Reels
+        </a>
         {% if current_user.is_admin %}
         <a href="{{ url_for('ask_question') }}" class="btn btn-success btn-lg" style="display: flex; align-items: center; gap: 8px; padding: 14px 28px; border-radius: 16px; background: var(--gradient-primary); color: white; text-decoration: none; transition: all 0.3s ease; box-shadow: 0 8px 25px rgba(79,124,255,0.3);">
             <span style="font-size: 20px;">✏️</span> Ask Question

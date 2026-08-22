@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div style="max-width: 950px; margin: 0 auto;">
+
+    <!-- HEADER -->
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 30px;">
+        <div>
+            <h2 style="color: var(--text-secondary); margin: 0; display: flex; align-items: center; gap: 12px; font-size: 28px;">
+                🎬 Video Reels Gallery
+            </h2>
+            <p style="color: var(--text-muted); font-size: 14px; margin-top: 6px; margin-bottom: 0;">
+                Click any <strong>▶️ Play Video</strong> button to watch a reel. Only the selected video plays!
+            </p>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            {% if current_user.is_admin %}
+            <a href="{{ url_for('admin_reels') }}" class="btn btn-sm" style="background: linear-gradient(135deg, #ff007f, #7928ca); color: white; font-weight: 700; padding: 10px 20px; border-radius: 16px; box-shadow: 0 4px 15px rgba(255,0,127,0.3);">
+                ➕ Add / Manage Reels
+            </a>
+            {% endif %}
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm" style="padding: 10px 18px; border-radius: 16px; font-weight: 600;">
+                ← Dashboard
+            </a>
+        </div>
+    </div>
+
+    {% if reels %}
+    <!-- REELS GRID -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px;">
+        {% for reel in reels %}
+        <div class="reel-card-wrapper" style="border-radius: 24px; background: var(--bg-primary); box-shadow: var(--card-shadow); overflow: hidden; display: flex; flex-direction: column; transition: transform 0.3s ease, box-shadow 0.3s ease;">
+            
+            <!-- REEL TITLE & HEADER -->
+            <div style="padding: 16px 20px; border-bottom: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-weight: 800; font-size: 16px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    🎬 {{ reel.title or 'Special Reel' }}
+                </div>
+                <span style="font-size: 11px; background: linear-gradient(135deg, #ff007f, #7928ca); color: white; padding: 3px 10px; border-radius: 12px; font-weight: 700;">
+                    Reel #{{ loop.index }}
+                </span>
+            </div>
+
+            <!-- MEDIA CONTAINER -->
+            <div style="position: relative; width: 100%; min-height: 260px; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                
+                <!-- PREVIEW CARD WITH PLAY BUTTON -->
+                <div id="reelPreview_{{ reel.id }}" class="reel-card-preview" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(135deg, #111827 0%, #1f2937 100%); padding: 20px; z-index: 2;">
+                    
+                    <div style="width: 70px; height: 70px; border-radius: 50%; background: rgba(255, 0, 127, 0.15); border: 2px solid #ff007f; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 16px; box-shadow: 0 0 25px rgba(255,0,127,0.4);">
+                        🎬
+                    </div>
+
+                    <button type="button" onclick="playReel('{{ reel.id }}')" class="btn" style="background: linear-gradient(135deg, #ff007f 0%, #7928ca 100%); color: white; font-weight: 800; font-size: 15px; padding: 12px 26px; border-radius: 20px; box-shadow: 0 8px 25px rgba(255, 0, 127, 0.4); border: none; cursor: pointer; transition: all 0.25s ease; display: flex; align-items: center; gap: 8px;">
+                        <span>▶️ Play Video</span>
+                    </button>
+
+                </div>
+
+                <!-- VIDEO PLAYER (INLINE - HIDDEN INITIALLY) -->
+                <video id="reelVideo_{{ reel.id }}" class="reel-video-element" controls playsinline preload="metadata" style="width: 100%; max-height: 420px; object-fit: contain; display: none; background: #000; z-index: 1;">
+                    <source src="{{ get_media_url(reel.video_url, 'video') }}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+
+            </div>
+
+            <!-- FOOTER INFO -->
+            <div style="padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.02);">
+                <span style="font-size: 12px; color: var(--text-muted);">
+                    Uploaded by <strong>Admin</strong>
+                </span>
+                <button type="button" onclick="playReel('{{ reel.id }}')" style="background: none; border: none; color: #ff007f; font-size: 13px; font-weight: 700; cursor: pointer;">
+                    ▶️ Watch
+                </button>
+            </div>
+
+        </div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    <!-- EMPTY STATE -->
+    <div style="text-align: center; padding: 60px 20px; border-radius: 24px; background: var(--bg-primary); box-shadow: var(--card-shadow);">
+        <div style="font-size: 56px; margin-bottom: 15px;">🎬</div>
+        <h3 style="color: var(--text-secondary); margin-bottom: 8px;">No Video Reels Added Yet</h3>
+        <p style="color: var(--text-muted); font-size: 14px; max-width: 400px; margin: 0 auto 20px;">
+            Admin has not uploaded any video reels yet. Check back soon for video updates!
+        </p>
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('admin_reels') }}" class="btn" style="background: linear-gradient(135deg, #ff007f, #7928ca); color: white; font-weight: 700; padding: 12px 28px; border-radius: 16px;">
+            ➕ Upload First Reel
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+function playReel(targetId) {
+    // 1. Pause and hide all other video players across the entire page
+    const allVideos = document.querySelectorAll('.reel-video-element');
+    allVideos.forEach(video => {
+        video.pause();
+        video.style.display = 'none';
+    });
+
+    // 2. Show all thumbnail cards & play buttons again
+    const allPreviews = document.querySelectorAll('.reel-card-preview');
+    allPreviews.forEach(preview => {
+        preview.style.display = 'flex';
+    });
+
+    // 3. Reveal and play strictly the selected target video
+    const targetPreview = document.getElementById('reelPreview_' + targetId);
+    const targetVideo = document.getElementById('reelVideo_' + targetId);
+
+    if (targetPreview) {
+        targetPreview.style.display = 'none';
+    }
+    
+    if (targetVideo) {
+        targetVideo.style.display = 'block';
+        targetVideo.play().catch(err => {
+            console.log('Autoplay deferred or interrupted:', err);
+        });
+    }
+}
+</script>
+
+{% endblock %}

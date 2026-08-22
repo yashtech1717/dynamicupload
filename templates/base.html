@@ -273,12 +273,14 @@
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-sm">💬 Dashboard</a>
+                <a href="{{ url_for('view_reels') }}" class="btn btn-sm" style="background: linear-gradient(135deg, #ff007f, #7928ca); color: white; font-weight: 700;">🎬 Reels</a>
                 {% if current_user.is_admin %}
                 <a href="{{ url_for('ask_question') }}" class="btn btn-success btn-sm">✏️ Ask</a>
                 <a href="{{ url_for('admin_users') }}" class="btn btn-warning btn-sm">👥 Users</a>
                 <a href="{{ url_for('admin_feedback') }}" class="btn btn-gold btn-sm">⭐ Feedback</a>
                 <a href="{{ url_for('admin_responses') }}" class="btn btn-primary btn-sm">📊 Responses</a>
                 <a href="{{ url_for('admin_snapshots') }}" class="btn btn-sm" style="background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: white;">📸 Snapshots</a>
+                <a href="{{ url_for('admin_reels') }}" class="btn btn-sm" style="background: linear-gradient(135deg, #ff007f, #7928ca); color: white; font-weight: 700;">🎬 Manage Reels</a>
                 <a href="{{ url_for('admin_intro_video') }}" class="btn btn-sm" style="background: linear-gradient(135deg, #e74c3c, #e67e22); color: white;">🎬 Pre-Login Video</a>
                 <a href="{{ url_for('reorder_questions') }}" class="btn btn-sm" style="background: linear-gradient(135deg, #f39c12, #e67e22); color: white;">🔀 Reorder</a>
                 <a href="{{ url_for('admin_typing_text') }}" class="btn btn-sm" style="background: var(--accent-teal); color: white;">✏️ Typing</a>

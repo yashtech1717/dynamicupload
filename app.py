@@ -318,6 +318,85 @@ def invalidate_cache(key=None):
         _CACHE_TIME.clear()
 
 QUESTION_ORDER_FILE = os.path.join(os.path.dirname(__file__), 'question_order.json')
+REELS_FILE = os.path.join(os.path.dirname(__file__), 'reels.json')
+
+def load_local_reels():
+    if os.path.exists(REELS_FILE):
+        try:
+            with open(REELS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return []
+
+def save_local_reels(reels_list):
+    try:
+        with open(REELS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(reels_list, f)
+    except Exception:
+        pass
+
+def get_all_reels():
+    def _fetch():
+        local_reels = load_local_reels()
+        if not supabase_initialized or not supabase_client:
+            return [SupabaseDoc(r) for r in local_reels]
+        try:
+            res = supabase_client.table('reels').select('*').order('created_at', desc=True).execute()
+            if res.data and len(res.data) > 0:
+                return [SupabaseDoc(d) for d in res.data]
+        except Exception as e:
+            logger.info(f"Note fetching reels from Supabase: {e}. Falling back to local storage.")
+        return [SupabaseDoc(r) for r in local_reels]
+    return get_cached('all_reels', _fetch, ttl=5)
+
+def save_reel_doc(title, video_url):
+    reel_id = uuid.uuid4().hex[:10]
+    reel_dict = {
+        'id': reel_id,
+        'title': title or 'Video Reel',
+        'video_url': video_url,
+        'created_at': datetime.utcnow().isoformat()
+    }
+    
+    local_reels = load_local_reels()
+    local_reels.insert(0, reel_dict)
+    save_local_reels(local_reels)
+
+    if supabase_initialized and supabase_client:
+        try:
+            supabase_client.table('reels').upsert(reel_dict).execute()
+        except Exception as e:
+            logger.warning(f"Note saving reel to Supabase: {e}")
+
+    invalidate_cache('all_reels')
+    return SupabaseDoc(reel_dict)
+
+def delete_reel_doc(reel_id):
+    local_reels = load_local_reels()
+    target_reel = None
+    new_local = []
+    for r in local_reels:
+        if str(r.get('id')) == str(reel_id):
+            target_reel = r
+        else:
+            new_local.append(r)
+    save_local_reels(new_local)
+
+    if supabase_initialized and supabase_client:
+        try:
+            res = supabase_client.table('reels').select('*').eq('id', reel_id).execute()
+            if res.data and len(res.data) > 0:
+                target_reel = res.data[0]
+            supabase_client.table('reels').delete().eq('id', reel_id).execute()
+        except Exception as e:
+            logger.warning(f"Note deleting reel from Supabase: {e}")
+
+    if target_reel and target_reel.get('video_url'):
+        delete_file_from_supabase(target_reel.get('video_url'))
+
+    invalidate_cache('all_reels')
+    return True
 
 def load_local_question_order():
     if os.path.exists(QUESTION_ORDER_FILE):
@@ -1966,6 +2045,41 @@ def update_question_order():
         return jsonify({'success': True, 'message': 'Question order updated successfully!'})
     else:
         return jsonify({'success': False, 'message': 'Failed to update question order.'}), 500
+
+@app.route('/reels')
+@login_required
+def view_reels():
+    reels = get_all_reels()
+    return render_template('reels.html', reels=reels)
+
+@app.route('/admin/reels', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_reels():
+    if request.method == 'POST':
+        title = request.form.get('title', 'Video Reel').strip()
+        if 'video' in request.files:
+            file = request.files['video']
+            if file and file.filename:
+                res = upload_file_to_supabase(file, media_type='video')
+                uploaded_url = res[0] if isinstance(res, tuple) else res
+                if uploaded_url:
+                    save_reel_doc(title, uploaded_url)
+                    flash('New Video Reel uploaded successfully!', 'success')
+                    return redirect(url_for('admin_reels'))
+        flash('Please select a valid video file to upload.', 'danger')
+        return redirect(url_for('admin_reels'))
+
+    reels = get_all_reels()
+    return render_template('admin_reels.html', reels=reels)
+
+@app.route('/admin/reels/<reel_id>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_reel(reel_id):
+    delete_reel_doc(reel_id)
+    flash('Video Reel deleted successfully.', 'success')
+    return redirect(url_for('admin_reels'))
 
 # ============================================================
 # SEEDING & DEFAULTS INITIALIZATION
