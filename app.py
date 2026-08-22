@@ -1130,6 +1130,14 @@ def get_media_url(data, media_type='image'):
     if not data:
         return ''
     data = str(data).strip()
+    if data.startswith("('") or data.startswith('("'):
+        try:
+            import ast
+            parsed = ast.literal_eval(data)
+            if isinstance(parsed, (list, tuple)) and len(parsed) > 0:
+                data = str(parsed[0]).strip()
+        except Exception:
+            pass
     if data.startswith('data:image') or data.startswith('data:video') or data.startswith('data:audio'):
         return data
     if data.startswith('http://') or data.startswith('https://') or data.startswith('//'):
@@ -1848,7 +1856,8 @@ def admin_settings():
         if 'intro_video' in request.files:
             file = request.files['intro_video']
             if file and file.filename:
-                uploaded_url = upload_file_to_supabase(file, media_type='video')
+                res = upload_file_to_supabase(file, media_type='video')
+                uploaded_url = res[0] if isinstance(res, tuple) else res
                 if uploaded_url:
                     intro_url = uploaded_url
 
@@ -1870,7 +1879,7 @@ def admin_settings():
 @admin_required
 def delete_intro_video():
     settings = get_site_settings()
-    curr_url = getattr(settings, 'intro_video_url', '')
+    curr_url = get_media_url(getattr(settings, 'intro_video_url', ''))
     if curr_url and str(curr_url).startswith('http'):
         delete_file_from_supabase(curr_url)
     
@@ -1882,7 +1891,7 @@ def delete_intro_video():
         intro_video_url='',
         intro_video_enabled=False
     )
-    flash('Pre-login intro video deleted.', 'success')
+    flash('Pre-login intro video deleted successfully.', 'success')
     return redirect(request.referrer or url_for('admin_intro_video'))
 
 @app.route('/admin/intro-video', methods=['GET', 'POST'])
@@ -1893,12 +1902,13 @@ def admin_intro_video():
     
     if request.method == 'POST':
         intro_enabled = 'intro_video_enabled' in request.form
-        intro_url = request.form.get('intro_video_url', getattr(settings, 'intro_video_url', '')).strip()
+        intro_url = get_media_url(getattr(settings, 'intro_video_url', ''))
 
         if 'intro_video' in request.files:
             file = request.files['intro_video']
             if file and file.filename:
-                uploaded_url = upload_file_to_supabase(file, media_type='video')
+                res = upload_file_to_supabase(file, media_type='video')
+                uploaded_url = res[0] if isinstance(res, tuple) else res
                 if uploaded_url:
                     intro_url = uploaded_url
 

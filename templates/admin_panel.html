@@ -92,15 +92,9 @@
         </div>
         {% endif %}
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex-wrap: wrap;">
-            <div>
-                <label style="font-weight: 600; font-size: 13px; color: var(--text-secondary); display: block; margin-bottom: 6px;">📹 Upload Video from Device</label>
-                <input type="file" name="intro_video" accept="video/*" style="width: 100%; font-size: 13px; padding: 10px; border-radius: 12px; background: var(--bg-primary); border: none; box-shadow: var(--inset-shadow);">
-            </div>
-            <div>
-                <label style="font-weight: 600; font-size: 13px; color: var(--text-secondary); display: block; margin-bottom: 6px;">🔗 Or Direct Video URL</label>
-                <input type="url" name="intro_video_url" value="{{ site_set.intro_video_url or '' }}" placeholder="https://.../video.mp4" style="width: 100%; font-size: 13px; padding: 10px 14px; border-radius: 12px; background: var(--bg-primary); border: none; box-shadow: var(--inset-shadow); color: var(--text-primary); outline: none;">
-            </div>
+        <div>
+            <label style="font-weight: 600; font-size: 13px; color: var(--text-secondary); display: block; margin-bottom: 6px;">📹 Upload Video File from Phone / Computer</label>
+            <input type="file" name="intro_video" accept="video/*" style="width: 100%; font-size: 13px; padding: 10px; border-radius: 12px; background: var(--bg-primary); border: none; box-shadow: var(--inset-shadow);">
         </div>
 
         <button type="submit" class="btn" style="background: linear-gradient(135deg, #8e44ad, #9b59b6); color: white; font-weight: 700; align-self: flex-start; padding: 10px 24px; border-radius: 14px;">
