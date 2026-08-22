@@ -356,7 +356,7 @@ function hideTyping() {
 <!-- ============================================ -->
 <!-- FEEDBACK SECTION - HIDDEN BY DEFAULT -->
 <!-- ============================================ -->
-{% if current_user.is_friend and not current_user.is_admin %}
+{% if current_user.is_authenticated %}
 <div id="feedbackSection" style="display: none; margin-top: 20px; padding: 25px; border-radius: 20px; background: var(--bg-primary); box-shadow: var(--card-shadow); border-top: 4px solid var(--gradient-gold); animation: slideDown 0.4s ease;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <div style="display: flex; align-items: center; gap: 10px;">
