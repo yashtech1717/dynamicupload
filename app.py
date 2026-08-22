@@ -889,9 +889,24 @@ def get_all_feedback_questions():
         logger.error(f"Error fetching feedback questions: {e}")
         return []
 
+DEFAULT_FEEDBACK_QUESTIONS = [
+    '⭐ How would you rate your overall experience with your friend?',
+    '💬 How helpful and responsive is your friend?',
+    '🌟 How much do you enjoy communicating here?'
+]
+
 def get_active_feedback_questions():
     all_q = get_all_feedback_questions()
-    return [q for q in all_q if getattr(q, 'is_active', True)]
+    active = [q for q in all_q if getattr(q, 'is_active', True)]
+    if not active:
+        for q_text in DEFAULT_FEEDBACK_QUESTIONS:
+            try:
+                save_feedback_question(q_text)
+            except Exception:
+                pass
+        all_q = get_all_feedback_questions()
+        active = [q for q in all_q if getattr(q, 'is_active', True)]
+    return active
 
 def save_feedback_question(question_str):
     if not supabase_initialized or not supabase_client:

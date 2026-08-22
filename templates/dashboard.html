@@ -752,17 +752,26 @@ function hideTyping() {
 function toggleFeedback() {
     const section = document.getElementById('feedbackSection');
     if (section) {
-        const isHidden = getComputedStyle(section).display === 'none';
-        if (isHidden) {
-            section.style.display = 'block';
-            setTimeout(() => {
-                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
-        } else {
-            section.style.display = 'none';
-        }
+        section.style.display = 'block';
+        setTimeout(() => {
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+    } else {
+        window.location.href = "{{ url_for('dashboard') }}?open_feedback=true#feedbackSection";
     }
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.location.search.includes('open_feedback=true') || window.location.hash === '#feedbackSection') {
+        const section = document.getElementById('feedbackSection');
+        if (section) {
+            section.style.display = 'block';
+            setTimeout(() => {
+                section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 200);
+        }
+    }
+});
 
 // ============================================
 // MEDIA TOGGLE
