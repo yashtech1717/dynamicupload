@@ -527,9 +527,9 @@ function hideTyping() {
         {% endif %}
         
         {% if current_question.video_data %}
-        <button class="media-reveal-btn video-btn" onclick="toggleMedia('q_vid_{{ current_question.id }}', this)" style="padding: 10px 22px; border-radius: 16px; border: none; font-weight: 800; cursor: pointer; transition: all 0.25s ease; display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-size: 14px; background: linear-gradient(135deg, #ff007f, #7928ca); color: white; box-shadow: 0 6px 20px rgba(255, 0, 127, 0.35);">
-            <span>▶️</span>
-            <span class="btn-text">Play Video</span>
+        <button class="media-reveal-btn video-btn" onclick="toggleMedia('q_vid_{{ current_question.id }}', this)" style="padding: 9px 22px; border-radius: 30px; border: none; border-left: 4px solid #ff3838; background: var(--bg-primary); box-shadow: var(--card-shadow); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.25s ease;">
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; background: linear-gradient(135deg, #4f7cff, #3b82f6); color: white; border-radius: 6px; font-size: 11px; box-shadow: 0 2px 6px rgba(59,130,246,0.4);">▶</span>
+            <span class="btn-text" style="color: #ff3838; font-weight: 800; font-size: 14px; font-family: inherit;">Play Video</span>
         </button>
         {% endif %}
         
@@ -579,9 +579,9 @@ function hideTyping() {
             {% endif %}
             
             {% if current_question.answer_video_data %}
-            <button class="media-reveal-btn video-btn" onclick="toggleMedia('a_vid_{{ current_question.id }}', this)" style="padding: 9px 20px; border-radius: 14px; border: none; font-weight: 800; cursor: pointer; transition: all 0.25s ease; display: inline-flex; align-items: center; gap: 8px; font-family: inherit; font-size: 13px; background: linear-gradient(135deg, #ff007f, #7928ca); color: white; box-shadow: 0 5px 18px rgba(255, 0, 127, 0.35);">
-                <span>▶️</span>
-                <span class="btn-text">Play Video</span>
+            <button class="media-reveal-btn video-btn" onclick="toggleMedia('a_vid_{{ current_question.id }}', this)" style="padding: 8px 20px; border-radius: 30px; border: none; border-left: 4px solid #ff3838; background: var(--bg-primary); box-shadow: var(--card-shadow); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.25s ease;">
+                <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; background: linear-gradient(135deg, #4f7cff, #3b82f6); color: white; border-radius: 6px; font-size: 10px; box-shadow: 0 2px 6px rgba(59,130,246,0.4);">▶</span>
+                <span class="btn-text" style="color: #ff3838; font-weight: 800; font-size: 13px; font-family: inherit;">Play Video</span>
             </button>
             {% endif %}
             
@@ -662,9 +662,9 @@ function hideTyping() {
                 </button>
                 {% endif %}
                 {% if reply.video_data %}
-                <button class="media-reveal-btn video-btn" onclick="toggleMedia('r_vid_{{ reply.id }}', this)" style="padding: 7px 16px; border-radius: 12px; border: none; font-weight: 800; cursor: pointer; transition: all 0.25s ease; display: inline-flex; align-items: center; gap: 6px; font-family: inherit; font-size: 12px; background: linear-gradient(135deg, #ff007f, #7928ca); color: white; box-shadow: 0 4px 14px rgba(255, 0, 127, 0.35);">
-                    <span>▶️</span>
-                    <span class="btn-text">Play Video</span>
+                <button class="media-reveal-btn video-btn" onclick="toggleMedia('r_vid_{{ reply.id }}', this)" style="padding: 7px 18px; border-radius: 30px; border: none; border-left: 3px solid #ff3838; background: var(--bg-primary); box-shadow: var(--card-shadow); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.25s ease;">
+                    <span style="display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: linear-gradient(135deg, #4f7cff, #3b82f6); color: white; border-radius: 5px; font-size: 9px; box-shadow: 0 2px 5px rgba(59,130,246,0.4);">▶</span>
+                    <span class="btn-text" style="color: #ff3838; font-weight: 800; font-size: 12px; font-family: inherit;">Play Video</span>
                 </button>
                 {% endif %}
                 {% if reply.audio_data %}
