@@ -24,7 +24,7 @@
         </div>
     </div>
 
-    <!-- UPLOAD REEL FORM WITH REAL-TIME PROGRESS BAR -->
+    <!-- UPLOAD REEL FORM WITH HIGH-SPEED DIRECT CDN UPLOADER -->
     <div style="padding: 26px; border-radius: 24px; background: var(--bg-primary); box-shadow: var(--card-shadow); margin-bottom: 30px; border-left: 5px solid #ff007f;">
         <h3 style="color: var(--text-secondary); margin-bottom: 15px; font-size: 20px;">
             📹 Upload New Video Reel
@@ -45,7 +45,7 @@
                 </label>
                 <input type="file" id="reelVideoFile" name="video" accept="video/*" style="width: 100%; padding: 14px 18px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 14px; color: var(--text-primary); outline: none; cursor: pointer;">
                 <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px;">
-                    Supports MP4, MOV, WEBM video files from your device gallery.
+                    Direct high-speed upload supports MP4, MOV, and WEBM video files.
                 </div>
             </div>
 
@@ -57,17 +57,17 @@
             </div>
 
             <!-- LIVE UPLOAD PROGRESS BAR -->
-            <div id="progressContainer" style="display: none; padding: 16px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); margin-top: 5px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <span id="progressStatus" style="font-weight: 800; font-size: 14px; color: #ff007f;">
-                        ⏳ Starting Upload...
+            <div id="progressContainer" style="display: none; padding: 18px; border-radius: 18px; background: var(--bg-primary); box-shadow: var(--inset-shadow); margin-top: 5px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span id="progressStatus" style="font-weight: 800; font-size: 14.5px; color: #ff007f;">
+                        ⚡ Starting High-Speed Direct Upload...
                     </span>
-                    <span id="progressPercent" style="font-weight: 800; font-size: 14px; color: var(--text-secondary);">
+                    <span id="progressPercent" style="font-weight: 800; font-size: 15px; color: var(--text-secondary);">
                         0%
                     </span>
                 </div>
-                <div style="width: 100%; height: 14px; background: rgba(0,0,0,0.1); border-radius: 10px; overflow: hidden;">
-                    <div id="progressBar" style="width: 0%; height: 100%; background: linear-gradient(135deg, #ff007f, #7928ca); border-radius: 10px; transition: width 0.2s ease;"></div>
+                <div style="width: 100%; height: 16px; background: rgba(0,0,0,0.1); border-radius: 12px; overflow: hidden; position: relative;">
+                    <div id="progressBar" style="width: 0%; height: 100%; background: linear-gradient(135deg, #ff007f, #7928ca); border-radius: 12px; transition: width 0.15s linear;"></div>
                 </div>
             </div>
 
@@ -123,7 +123,11 @@
 </div>
 
 <script>
-document.getElementById('reelUploadForm').addEventListener('submit', function(e) {
+const SUPABASE_URL = "{{ supabase_url or '' }}";
+const SUPABASE_KEY = "{{ supabase_key or '' }}";
+const SUPABASE_BUCKET = "{{ supabase_bucket or 'media' }}";
+
+document.getElementById('reelUploadForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
     const title = document.getElementById('reelTitle').value.trim();
@@ -135,15 +139,6 @@ document.getElementById('reelUploadForm').addEventListener('submit', function(e)
         return;
     }
 
-    const formData = new FormData();
-    formData.append('title', title);
-    if (videoFile) {
-        formData.append('video', videoFile);
-    }
-    if (videoUrl) {
-        formData.append('video_url', videoUrl);
-    }
-
     const submitBtn = document.getElementById('submitBtn');
     const btnIcon = document.getElementById('btnIcon');
     const btnText = document.getElementById('btnText');
@@ -151,56 +146,6 @@ document.getElementById('reelUploadForm').addEventListener('submit', function(e)
     const progressBar = document.getElementById('progressBar');
     const progressPercent = document.getElementById('progressPercent');
     const progressStatus = document.getElementById('progressStatus');
-
-    submitBtn.disabled = true;
-    submitBtn.style.opacity = '0.6';
-    btnIcon.innerText = '⏳';
-    btnText.innerText = 'Uploading...';
-
-    progressContainer.style.display = 'block';
-    progressBar.style.width = '0%';
-    progressPercent.innerText = '0%';
-    progressStatus.innerText = '⏳ Uploading Video Payload...';
-
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '{{ url_for("admin_reels_upload_ajax") }}', true);
-
-    xhr.upload.onprogress = function(e) {
-        if (e.lengthComputable) {
-            const percent = Math.round((e.loaded / e.total) * 100);
-            progressBar.style.width = percent + '%';
-            progressPercent.innerText = percent + '%';
-            progressStatus.innerText = `⏳ Uploading... ${percent}%`;
-        }
-    };
-
-    xhr.onload = function() {
-        if (xhr.status === 200) {
-            try {
-                const res = JSON.parse(xhr.responseText);
-                if (res.success) {
-                    progressBar.style.background = '#2ecc71';
-                    progressStatus.innerText = '✅ Upload Complete! Reloading...';
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 800);
-                } else {
-                    alert('Upload error: ' + (res.message || 'Failed to upload reel.'));
-                    resetBtn();
-                }
-            } catch(err) {
-                window.location.reload();
-            }
-        } else {
-            alert('Upload failed with status ' + xhr.status + '. Please try a smaller video or direct video link.');
-            resetBtn();
-        }
-    };
-
-    xhr.onerror = function() {
-        alert('Network upload error. Please check your internet connection.');
-        resetBtn();
-    };
 
     function resetBtn() {
         submitBtn.disabled = false;
@@ -210,7 +155,144 @@ document.getElementById('reelUploadForm').addEventListener('submit', function(e)
         progressContainer.style.display = 'none';
     }
 
-    xhr.send(formData);
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.6';
+    btnIcon.innerText = '⚡';
+    btnText.innerText = 'Uploading...';
+    progressContainer.style.display = 'block';
+    progressBar.style.width = '0%';
+    progressPercent.innerText = '0%';
+
+    let finalVideoUrl = videoUrl;
+
+    if (videoFile) {
+        // Direct High-Speed Cloud CDN Upload (Bypasses Render 30s Server Timeout)
+        if (SUPABASE_URL && SUPABASE_KEY) {
+            try {
+                progressStatus.innerText = '⚡ Direct Cloud Uploading...';
+                
+                const cleanName = videoFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const ext = cleanName.includes('.') ? cleanName.split('.').pop() : 'mp4';
+                const uniquePath = `videos/${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${cleanName}`;
+                const uploadEndpoint = `${SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/${SUPABASE_BUCKET}/${uniquePath}`;
+
+                const uploadPromise = new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', uploadEndpoint, true);
+                    xhr.setRequestHeader('Authorization', 'Bearer ' + SUPABASE_KEY);
+                    xhr.setRequestHeader('apiKey', SUPABASE_KEY);
+                    xhr.setRequestHeader('x-upsert', 'true');
+                    xhr.setRequestHeader('Content-Type', videoFile.type || 'video/mp4');
+
+                    xhr.upload.onprogress = function(evt) {
+                        if (evt.lengthComputable) {
+                            const percent = Math.round((evt.loaded / evt.total) * 100);
+                            progressBar.style.width = percent + '%';
+                            progressPercent.innerText = percent + '%';
+                            progressStatus.innerText = `⚡ Cloud Uploading... ${percent}%`;
+                        }
+                    };
+
+                    xhr.onload = function() {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            const publicUrl = `${SUPABASE_URL.replace(/\/$/, '')}/storage/v1/object/public/${SUPABASE_BUCKET}/${uniquePath}`;
+                            resolve(publicUrl);
+                        } else {
+                            reject(new Error('Supabase Storage HTTP ' + xhr.status));
+                        }
+                    };
+
+                    xhr.onerror = function() {
+                        reject(new Error('Network error during Supabase upload'));
+                    };
+
+                    xhr.send(videoFile);
+                });
+
+                finalVideoUrl = await uploadPromise;
+
+            } catch (err) {
+                console.warn('Direct Cloud upload notice, switching to server streaming:', err);
+            }
+        }
+
+        // Server streaming upload fallback if direct upload didn't execute
+        if (!finalVideoUrl) {
+            progressStatus.innerText = '⏳ Server Streaming Upload...';
+            const formData = new FormData();
+            formData.append('title', title);
+            formData.append('video', videoFile);
+
+            const serverUploadPromise = new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '{{ url_for("admin_reels_upload_ajax") }}', true);
+                
+                xhr.upload.onprogress = function(evt) {
+                    if (evt.lengthComputable) {
+                        const percent = Math.round((evt.loaded / evt.total) * 100);
+                        progressBar.style.width = percent + '%';
+                        progressPercent.innerText = percent + '%';
+                        progressStatus.innerText = `⏳ Server Uploading... ${percent}%`;
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        try {
+                            const res = JSON.parse(xhr.responseText);
+                            if (res.success) resolve(true);
+                            else reject(new Error(res.message || 'Upload failed'));
+                        } catch(e) { resolve(true); }
+                    } else {
+                        reject(new Error('Server HTTP ' + xhr.status));
+                    }
+                };
+
+                xhr.onerror = function() { reject(new Error('Network upload error')); };
+                xhr.send(formData);
+            });
+
+            try {
+                await serverUploadPromise;
+                progressBar.style.background = '#2ecc71';
+                progressPercent.innerText = '100%';
+                progressStatus.innerText = '✅ Upload Complete! Refreshing...';
+                setTimeout(() => window.location.reload(), 500);
+                return;
+            } catch (err) {
+                alert('Upload error: ' + err.message);
+                resetBtn();
+                return;
+            }
+        }
+    }
+
+    // Submit title & finalVideoUrl to server
+    if (finalVideoUrl) {
+        progressStatus.innerText = '💾 Saving Reel details...';
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('video_url', finalVideoUrl);
+
+        try {
+            const resp = await fetch('{{ url_for("admin_reels_upload_ajax") }}', {
+                method: 'POST',
+                body: formData
+            });
+            const resData = await resp.json();
+            if (resData.success) {
+                progressBar.style.background = '#2ecc71';
+                progressPercent.innerText = '100%';
+                progressStatus.innerText = '✅ Reel Uploaded Successfully!';
+                setTimeout(() => window.location.reload(), 500);
+            } else {
+                alert('Save error: ' + (resData.message || 'Failed to save reel'));
+                resetBtn();
+            }
+        } catch(err) {
+            window.location.reload();
+        }
+    }
 });
 </script>
 

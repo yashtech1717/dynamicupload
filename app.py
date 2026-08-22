@@ -1290,7 +1290,13 @@ def get_media_url(data, media_type='image'):
 
 @app.context_processor
 def utility_processor():
-    return dict(get_site_settings=get_site_settings, get_media_url=get_media_url)
+    return dict(
+        get_site_settings=get_site_settings,
+        get_media_url=get_media_url,
+        supabase_url=supabase_url,
+        supabase_key=supabase_key,
+        supabase_bucket=supabase_bucket_name
+    )
 
 @app.errorhandler(500)
 def internal_server_error(e):
