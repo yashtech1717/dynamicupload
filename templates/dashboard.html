@@ -489,7 +489,7 @@ function hideTyping() {
     <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
             <span style="font-weight: 600; color: var(--accent-blue); font-size: 16px;">❓ {{ current_question.asker.username }}</span>
-            <span style="color: var(--text-muted); font-size: 12px;">{{ current_question.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+            <span style="color: var(--text-muted); font-size: 12px;">{{ current_question.created_at|format_datetime }}</span>
             {% if current_question.has_answer %}
             <span style="background: var(--accent-green); color: white; padding: 3px 12px; border-radius: 20px; font-size: 11px; font-weight: 600;">✅ Answered</span>
             {% else %}
@@ -637,7 +637,7 @@ function hideTyping() {
                         💬 FRIEND REPLIED ANSWER (by {{ reply.replier.username if reply.replier else 'Friend' }}):
                     </span>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="color: var(--text-muted); font-size: 11px;">🕒 {{ reply.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+                        <span style="color: var(--text-muted); font-size: 11px;">🕒 {{ reply.created_at|format_datetime }}</span>
                         {% if current_user.is_admin %}
                         <button onclick="confirmDelete('reply', {{ reply.id }})" class="btn btn-danger btn-sm" style="padding: 2px 8px; border-radius: 8px; font-size: 11px; background: var(--accent-red); color: white; border: none; cursor: pointer;">
                             🗑️

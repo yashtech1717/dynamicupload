@@ -134,7 +134,7 @@ function cancelEditMode() {
                     {{ text.text }}
                 </div>
                 <div style="margin-top: 5px; font-size: 12px; color: var(--text-muted);">
-                    Created: {{ text.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    Created: {{ text.created_at|format_datetime }}
                 </div>
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">

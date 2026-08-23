@@ -8,7 +8,7 @@
     <div style="padding: 20px; border-radius: 18px; background: var(--bg-primary); box-shadow: var(--card-shadow); margin-bottom: 20px; border-left: 4px solid var(--accent-blue);">
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
             <span style="font-weight: 600; color: var(--accent-blue);">❓ Question</span>
-            <span style="color: var(--text-muted); font-size: 12px;">{{ question.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+            <span style="color: var(--text-muted); font-size: 12px;">{{ question.created_at|format_datetime }}</span>
         </div>
         <div style="font-size: 17px; color: var(--text-secondary); line-height: 1.6;">{{ question.text }}</div>
     </div>

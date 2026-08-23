@@ -74,7 +74,7 @@
             <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 10px;">
                 <div>
                     <strong style="color: var(--accent-blue);">{{ response.user.username }}</strong>
-                    <span style="color: var(--text-muted); font-size: 12px; margin-left: 10px;">{{ response.created_at.strftime('%d %b %Y, %H:%M') }}</span>
+                    <span style="color: var(--text-muted); font-size: 12px; margin-left: 10px;">{{ response.created_at|format_datetime }}</span>
                 </div>
                 <div style="font-size: 20px; color: var(--accent-yellow);">
                     {% for i in range(response.rating) %}⭐{% endfor %}
