@@ -1458,6 +1458,13 @@ def dashboard():
         all_replies = get_all_replies()
         total_replies_count = len(all_replies)
         
+        target_qid = request.args.get('qid')
+        if target_qid:
+            for idx, q in enumerate(all_questions):
+                if str(getattr(q, 'id', '')) == str(target_qid):
+                    session['current_question_index'] = idx
+                    break
+
         current_index = session.get('current_question_index', 0)
         if total_questions == 0:
             current_index = 0
@@ -1794,7 +1801,7 @@ def edit_question(question_id):
         invalidate_cache('all_questions')
             
         flash('Question updated successfully!', 'success')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard', qid=question_id))
     
     questions = get_all_questions()
     total_questions = len(questions)
