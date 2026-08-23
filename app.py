@@ -544,11 +544,35 @@ def get_question_by_id(question_id):
         logger.error(f"Error fetching question {question_id}: {e}")
     return None
 
+def _sanitize_for_json(val):
+    if val is None:
+        return None
+    if hasattr(val, 'isoformat'):
+        return val.isoformat()
+    if hasattr(val, 'val') and hasattr(val.val, 'isoformat'):
+        return val.val.isoformat()
+    if hasattr(val, 'val'):
+        return str(val.val)
+    if isinstance(val, (datetime, date)):
+        return val.isoformat()
+    if hasattr(val, 'to_dict'):
+        return _sanitize_for_json(val.to_dict())
+    if isinstance(val, dict):
+        return {k: _sanitize_for_json(v) for k, v in val.items()}
+    if isinstance(val, (list, tuple)):
+        return [_sanitize_for_json(x) for x in val]
+    return val
+
 def save_question(q_dict):
     if not supabase_initialized or not supabase_client or not q_dict:
         return None
     try:
-        clean_dict = {k: v for k, v in q_dict.items() if k not in ('asker', 'replies')}
+        clean_dict = {}
+        for k, v in q_dict.items():
+            if k in ('asker', 'replies'):
+                continue
+            clean_dict[k] = _sanitize_for_json(v)
+
         if 'created_at' not in clean_dict or not clean_dict['created_at']:
             clean_dict['created_at'] = datetime.utcnow().isoformat()
         clean_dict['updated_at'] = datetime.utcnow().isoformat()
@@ -1749,6 +1773,77 @@ def edit_question(question_id):
             break
             
     return render_template('edit_question.html', question=question, questions=questions, total_questions=total_questions, current_pos=current_pos)
+
+@app.route('/admin/question/<int:question_id>/edit', methods=['GET', 'POST'])
+@app.route('/admin/questions/<int:question_id>/edit', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def admin_edit_question(question_id):
+    question = get_question_by_id(question_id)
+    if not question:
+        flash('Question not found.', 'danger')
+        return redirect(url_for('admin_panel'))
+        
+    if request.method == 'POST':
+        q_dict = question.to_dict()
+        new_text = request.form.get('text', '').strip()
+        if new_text:
+            q_dict['text'] = new_text
+            
+        new_type = request.form.get('type', '').strip()
+        if new_type:
+            q_dict['type'] = new_type
+
+        new_marks = request.form.get('marks')
+        if new_marks and str(new_marks).isdigit():
+            q_dict['marks'] = int(new_marks)
+
+        new_answer = request.form.get('answer_text', '').strip()
+        if new_answer:
+            q_dict['answer_text'] = new_answer
+            q_dict['has_answer'] = True
+            q_dict['is_answered'] = True
+
+        media_specs = [
+            ('image', 'image', 'image_data', 'image_filename'),
+            ('video', 'video', 'video_data', 'video_filename'),
+            ('audio', 'audio', 'audio_data', 'audio_filename'),
+        ]
+        
+        try:
+            uploaded_media = process_media_uploads(request.files, media_specs)
+            for k, v in uploaded_media.items():
+                if k.endswith('_data') and q_dict.get(k):
+                    delete_file_from_supabase(q_dict.get(k))
+            q_dict.update(uploaded_media)
+        except Exception as e:
+            flash(f"Media upload failed: {str(e)}", 'danger')
+
+        question_position = request.form.get('question_position') or request.form.get('position') or request.form.get('display_order') or request.form.get('order')
+        if question_position:
+            insert_question_at_position(q_dict, target_pos=question_position)
+        else:
+            save_question(q_dict)
+
+        invalidate_cache('all_questions')
+        flash('Question updated successfully!', 'success')
+        return redirect(url_for('admin_edit_question', question_id=question_id))
+
+    questions = get_all_questions()
+    options = get_options_for_question(question_id)
+    current_pos = 1
+    for idx, q in enumerate(questions, start=1):
+        if str(getattr(q, 'id', '')) == str(question_id):
+            current_pos = idx
+            break
+
+    return render_template('admin_panel.html',
+        section='edit_question',
+        question=question,
+        options=options,
+        current_pos=current_pos,
+        questions=questions
+    )
 
 @app.route('/question/<int:question_id>/delete-media', methods=['POST'])
 @login_required
