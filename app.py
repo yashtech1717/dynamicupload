@@ -574,7 +574,7 @@ def save_question(q_dict):
             # 1. Try full update payload
             res = None
             try:
-                res = supabase_client.table('questions').update(update_payload).eq('id', target_id).execute()
+                res = supabase_client.table('questions').update(update_payload).eq('id', target_id).select().execute()
             except Exception as ex1:
                 logger.warning(f"Full update failed, trying pruned standard columns: {ex1}")
                 standard_cols = (
@@ -588,16 +588,16 @@ def save_question(q_dict):
                 )
                 pruned_payload = {k: v for k, v in update_payload.items() if k in standard_cols}
                 try:
-                    res = supabase_client.table('questions').update(pruned_payload).eq('id', target_id).execute()
+                    res = supabase_client.table('questions').update(pruned_payload).eq('id', target_id).select().execute()
                 except Exception as ex2:
                     logger.warning(f"Pruned update failed, performing field-by-field updates: {ex2}")
                     for fk, fv in update_payload.items():
                         try:
-                            supabase_client.table('questions').update({fk: fv}).eq('id', target_id).execute()
+                            supabase_client.table('questions').update({fk: fv}).eq('id', target_id).select().execute()
                         except Exception:
                             pass
         else:
-            res = supabase_client.table('questions').insert(clean_dict).execute()
+            res = supabase_client.table('questions').insert(clean_dict).select().execute()
 
         invalidate_cache('all_questions')
         logger.info("⚡ Question saved to Supabase PostgreSQL")

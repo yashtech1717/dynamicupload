@@ -13,7 +13,7 @@
         <div style="font-size: 17px; color: var(--text-secondary); line-height: 1.6;">{{ question.text }}</div>
     </div>
     
-    <form method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 18px;">
+    <form method="post" action="{{ url_for('edit_question', question_id=question.id) }}" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 18px;">
         <div>
             <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">Question Text</label>
             <textarea name="text" required style="width: 100%; padding: 16px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 80px; font-family: inherit;">{{ question.text }}</textarea>
@@ -37,9 +37,9 @@
             <textarea name="answer_text" style="width: 100%; padding: 16px 20px; border: none; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 16px; color: var(--text-primary); outline: none; resize: vertical; min-height: 80px; font-family: inherit;">{{ question.answer_text or '' }}</textarea>
         </div>
         
-        <!-- Direct Device File Uploads for Question -->
+        <!-- Direct Device File Uploads for Question Media -->
         <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-left: 4px solid var(--accent-blue);">
-            <h4 style="color: var(--text-secondary); margin-bottom: 12px;">📱 Upload Media Directly from Device</h4>
+            <h4 style="color: var(--text-secondary); margin-bottom: 12px;">📱 Upload Question Media Directly from Device</h4>
             <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 15px;">Select new files directly from your phone/computer file system to replace or add media.</p>
             
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px;">
@@ -58,58 +58,74 @@
             </div>
         </div>
         
-        {% if question.image_data or question.video_data or question.audio_data %}
+        {% if question.image_data or question.video_data or question.audio_data or question.image or question.video or question.audio %}
         <div style="padding: 16px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow);">
             <h4 style="color: var(--text-secondary); margin-bottom: 12px;">📎 Existing Question Media</h4>
             
-            {% if question.image_data %}
+            {% if question.image_data or question.image %}
             <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; background: var(--bg-primary); border-radius: 12px; margin-bottom: 8px; flex-wrap: wrap;">
                 <div>
                     <span>🖼️ Image</span>
                     <span style="color: var(--text-muted); font-size: 12px; margin-left: 8px;">{{ question.image_filename or 'Image attached' }}</span>
                 </div>
-                <button type="submit" formAction="{{ url_for('delete_question_media', question_id=question.id) }}" name="media_type" value="image" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this image?')">🗑️ Delete Image</button>
+                <button type="submit" formaction="{{ url_for('delete_question_media', question_id=question.id) }}" name="media_type" value="image" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this image?')">🗑️ Delete Image</button>
             </div>
             {% endif %}
             
-            {% if question.video_data %}
+            {% if question.video_data or question.video %}
             <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; background: var(--bg-primary); border-radius: 12px; margin-bottom: 8px; flex-wrap: wrap;">
                 <div>
                     <span>🎬 Video</span>
                     <span style="color: var(--text-muted); font-size: 12px; margin-left: 8px;">{{ question.video_filename or 'Video attached' }}</span>
                 </div>
-                <button type="submit" formAction="{{ url_for('delete_question_media', question_id=question.id) }}" name="media_type" value="video" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this video?')">🗑️ Delete Video</button>
+                <button type="submit" formaction="{{ url_for('delete_question_media', question_id=question.id) }}" name="media_type" value="video" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this video?')">🗑️ Delete Video</button>
             </div>
             {% endif %}
             
-            {% if question.audio_data %}
+            {% if question.audio_data or question.audio %}
             <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 15px; background: var(--bg-primary); border-radius: 12px; margin-bottom: 8px; flex-wrap: wrap;">
                 <div>
                     <span>🎵 Audio</span>
                     <span style="color: var(--text-muted); font-size: 12px; margin-left: 8px;">{{ question.audio_filename or 'Audio attached' }}</span>
                 </div>
-                <button type="submit" formAction="{{ url_for('delete_question_media', question_id=question.id) }}" name="media_type" value="audio" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this audio?')">🗑️ Delete Audio</button>
+                <button type="submit" formaction="{{ url_for('delete_question_media', question_id=question.id) }}" name="media_type" value="audio" class="btn btn-danger btn-sm" style="padding: 4px 12px; font-size: 12px; border-radius: 10px; background: var(--accent-red); color: white; border: none; cursor: pointer;" onclick="return confirm('Delete this audio?')">🗑️ Delete Audio</button>
             </div>
             {% endif %}
         </div>
         {% endif %}
         
-        <!-- Answer Media -->
+        <!-- Answer Media File Uploads & URLs -->
         <div style="padding: 20px; border-radius: 16px; background: var(--bg-primary); box-shadow: var(--inset-shadow); border-left: 4px solid var(--accent-green);">
-            <h4 style="color: var(--accent-green); margin-bottom: 15px;">📌 Answer Media (Cloudinary URLs)</h4>
+            <h4 style="color: var(--accent-green); margin-bottom: 12px;">📌 Answer Media (Device Uploads or Cloud URLs)</h4>
+            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 15px;">Select answer files directly from your phone/computer OR paste external URLs.</p>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 15px;">
+                <div>
+                    <label style="font-weight: 600; font-size: 12px; display: block; margin-bottom: 4px;">🖼️ Answer Image File</label>
+                    <input type="file" name="answer_image" accept="image/*" style="font-size: 12px; width: 100%;">
+                </div>
+                <div>
+                    <label style="font-weight: 600; font-size: 12px; display: block; margin-bottom: 4px;">📹 Answer Video File</label>
+                    <input type="file" name="answer_video" accept="video/*" style="font-size: 12px; width: 100%;">
+                </div>
+                <div>
+                    <label style="font-weight: 600; font-size: 12px; display: block; margin-bottom: 4px;">🎵 Answer Audio File</label>
+                    <input type="file" name="answer_audio" accept="audio/*" style="font-size: 12px; width: 100%;">
+                </div>
+            </div>
             
             <div style="margin-bottom: 12px;">
-                <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; font-size: 14px;">🎥 Answer Video URL</label>
+                <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; font-size: 14px;">🎥 Answer Video URL (Optional)</label>
                 <input type="url" name="answer_video_url" placeholder="https://res.cloudinary.com/.../answer_video.mp4" value="{{ question.answer_video_data if question.answer_video_data and question.answer_video_data.startswith('http') else '' }}" style="width: 100%; padding: 12px 16px; border: none; border-radius: 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 14px; outline: none; color: var(--text-primary);">
             </div>
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                 <div>
-                    <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; font-size: 14px;">🖼️ Answer Image URL</label>
+                    <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; font-size: 14px;">🖼️ Answer Image URL (Optional)</label>
                     <input type="url" name="answer_image_url" placeholder="https://res.cloudinary.com/.../answer_image.jpg" value="{{ question.answer_image_data if question.answer_image_data and question.answer_image_data.startswith('http') else '' }}" style="width: 100%; padding: 12px 16px; border: none; border-radius: 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 14px; outline: none; color: var(--text-primary);">
                 </div>
                 <div>
-                    <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; font-size: 14px;">🎵 Answer Audio URL</label>
+                    <label style="font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px; font-size: 14px;">🎵 Answer Audio URL (Optional)</label>
                     <input type="url" name="answer_audio_url" placeholder="https://res.cloudinary.com/.../answer_audio.mp3" value="{{ question.answer_audio_data if question.answer_audio_data and question.answer_audio_data.startswith('http') else '' }}" style="width: 100%; padding: 12px 16px; border: none; border-radius: 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 14px; outline: none; color: var(--text-primary);">
                 </div>
             </div>
