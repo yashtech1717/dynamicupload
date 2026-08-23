@@ -577,7 +577,14 @@ def save_question(q_dict):
             clean_dict['created_at'] = datetime.utcnow().isoformat()
         clean_dict['updated_at'] = datetime.utcnow().isoformat()
 
-        res = supabase_client.table('questions').upsert(clean_dict).execute()
+        if 'id' in clean_dict and clean_dict['id']:
+            target_id = int(clean_dict['id']) if str(clean_dict['id']).isdigit() else clean_dict['id']
+            clean_dict['id'] = target_id
+            res = supabase_client.table('questions').update(clean_dict).eq('id', target_id).execute()
+            if not res.data:
+                res = supabase_client.table('questions').upsert(clean_dict).execute()
+        else:
+            res = supabase_client.table('questions').insert(clean_dict).execute()
         invalidate_cache('all_questions')
         logger.info("⚡ Question saved to Supabase PostgreSQL")
         if res.data and len(res.data) > 0:
