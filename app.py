@@ -464,22 +464,12 @@ def update_question_order_list(ordered_ids):
         save_local_question_order(clean_ids)
         
         if supabase_initialized and supabase_client:
-            base_dt = datetime(2026, 1, 1, 0, 0, 0)
             for order_idx, q_id in enumerate(clean_ids, start=1):
                 t_id = int(q_id) if str(q_id).isdigit() else q_id
-                synthetic_created = (base_dt + timedelta(seconds=order_idx)).isoformat() + 'Z'
-                
-                update_payload = {
-                    'display_order': order_idx,
-                    'created_at': synthetic_created
-                }
                 try:
-                    supabase_client.table('questions').update(update_payload).eq('id', t_id).execute()
+                    supabase_client.table('questions').update({'display_order': order_idx}).eq('id', t_id).execute()
                 except Exception as ex1:
-                    try:
-                        supabase_client.table('questions').update({'created_at': synthetic_created}).eq('id', t_id).execute()
-                    except Exception as ex2:
-                        logger.warning(f"Error updating question order for {t_id}: {ex2}")
+                    logger.warning(f"Error updating question display order for {t_id}: {ex1}")
                         
         invalidate_cache('all_questions')
         return True
@@ -580,17 +570,38 @@ def save_question(q_dict):
         if 'id' in clean_dict and clean_dict['id']:
             target_id = int(clean_dict['id']) if str(clean_dict['id']).isdigit() else clean_dict['id']
             update_payload = {k: v for k, v in clean_dict.items() if k != 'id'}
+            
+            # 1. Try full update payload
+            res = None
             try:
                 res = supabase_client.table('questions').update(update_payload).eq('id', target_id).execute()
-            except Exception as ex_up:
-                logger.warning(f"Note on update query: {ex_up}")
-                clean_dict['id'] = target_id
-                res = supabase_client.table('questions').upsert(clean_dict).execute()
+            except Exception as ex1:
+                logger.warning(f"Full update failed, trying pruned standard columns: {ex1}")
+                standard_cols = (
+                    'text', 'user_id', 'type', 'marks', 'display_order',
+                    'image', 'image_data', 'image_filename',
+                    'video', 'video_data', 'video_filename',
+                    'audio', 'audio_data', 'audio_filename',
+                    'answer_text', 'has_answer', 'is_answered',
+                    'answer_image_data', 'answer_video_data', 'answer_audio_data',
+                    'created_at', 'updated_at'
+                )
+                pruned_payload = {k: v for k, v in update_payload.items() if k in standard_cols}
+                try:
+                    res = supabase_client.table('questions').update(pruned_payload).eq('id', target_id).execute()
+                except Exception as ex2:
+                    logger.warning(f"Pruned update failed, performing field-by-field updates: {ex2}")
+                    for fk, fv in update_payload.items():
+                        try:
+                            supabase_client.table('questions').update({fk: fv}).eq('id', target_id).execute()
+                        except Exception:
+                            pass
         else:
             res = supabase_client.table('questions').insert(clean_dict).execute()
+
         invalidate_cache('all_questions')
         logger.info("⚡ Question saved to Supabase PostgreSQL")
-        if res.data and len(res.data) > 0:
+        if res and hasattr(res, 'data') and res.data and len(res.data) > 0:
             return SupabaseDoc(res.data[0])
         return get_question_by_id(q_dict.get('id'))
     except Exception as e:
