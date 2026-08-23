@@ -568,13 +568,16 @@ def save_question(q_dict):
         clean_dict['updated_at'] = datetime.utcnow().isoformat()
 
         if 'id' in clean_dict and clean_dict['id']:
-            target_id = int(clean_dict['id']) if str(clean_dict['id']).isdigit() else clean_dict['id']
+            raw_id = clean_dict['id']
+            target_id = int(raw_id) if str(raw_id).isdigit() else raw_id
             update_payload = {k: v for k, v in clean_dict.items() if k != 'id'}
             
             # 1. Try full update payload
             res = None
             try:
                 res = supabase_client.table('questions').update(update_payload).eq('id', target_id).select().execute()
+                if not res.data:
+                    res = supabase_client.table('questions').update(update_payload).eq('id', str(raw_id)).select().execute()
             except Exception as ex1:
                 logger.warning(f"Full update failed, trying pruned standard columns: {ex1}")
                 standard_cols = (
@@ -589,13 +592,18 @@ def save_question(q_dict):
                 pruned_payload = {k: v for k, v in update_payload.items() if k in standard_cols}
                 try:
                     res = supabase_client.table('questions').update(pruned_payload).eq('id', target_id).select().execute()
+                    if not res.data:
+                        res = supabase_client.table('questions').update(pruned_payload).eq('id', str(raw_id)).select().execute()
                 except Exception as ex2:
                     logger.warning(f"Pruned update failed, performing field-by-field updates: {ex2}")
                     for fk, fv in update_payload.items():
                         try:
                             supabase_client.table('questions').update({fk: fv}).eq('id', target_id).select().execute()
                         except Exception:
-                            pass
+                            try:
+                                supabase_client.table('questions').update({fk: fv}).eq('id', str(raw_id)).select().execute()
+                            except Exception:
+                                pass
         else:
             res = supabase_client.table('questions').insert(clean_dict).select().execute()
 
