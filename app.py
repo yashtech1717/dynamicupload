@@ -1233,6 +1233,8 @@ def process_media_uploads(request_files, media_specs):
                     uploaded_urls_to_cleanup.append(url)
                     uploaded_records[url_key] = url
                     uploaded_records[name_key] = fname
+                    if field_name in ('image', 'video', 'audio'):
+                        uploaded_records[field_name] = url
         return uploaded_records
     except Exception as e:
         logger.error(f"⚠️ Rolling back batch uploads due to error: {e}")
@@ -1726,6 +1728,9 @@ def edit_question(question_id):
             ('image', 'image', 'image_data', 'image_filename'),
             ('video', 'video', 'video_data', 'video_filename'),
             ('audio', 'audio', 'audio_data', 'audio_filename'),
+            ('answer_image', 'image', 'answer_image_data', 'answer_image_filename'),
+            ('answer_video', 'video', 'answer_video_data', 'answer_video_filename'),
+            ('answer_audio', 'audio', 'answer_audio_data', 'answer_audio_filename'),
         ]
         
         try:
@@ -1734,6 +1739,12 @@ def edit_question(question_id):
                 if k.endswith('_data') and q_dict.get(k):
                     delete_file_from_supabase(q_dict.get(k))
             q_dict.update(uploaded_media)
+            if 'image_data' in uploaded_media:
+                q_dict['image'] = uploaded_media['image_data']
+            if 'video_data' in uploaded_media:
+                q_dict['video'] = uploaded_media['video_data']
+            if 'audio_data' in uploaded_media:
+                q_dict['audio'] = uploaded_media['audio_data']
         except Exception as e:
             flash(f"Supabase Storage upload failed: {str(e)}", 'danger')
             return redirect(url_for('edit_question', question_id=question_id))
@@ -1808,6 +1819,9 @@ def admin_edit_question(question_id):
             ('image', 'image', 'image_data', 'image_filename'),
             ('video', 'video', 'video_data', 'video_filename'),
             ('audio', 'audio', 'audio_data', 'audio_filename'),
+            ('answer_image', 'image', 'answer_image_data', 'answer_image_filename'),
+            ('answer_video', 'video', 'answer_video_data', 'answer_video_filename'),
+            ('answer_audio', 'audio', 'answer_audio_data', 'answer_audio_filename'),
         ]
         
         try:
@@ -1816,6 +1830,12 @@ def admin_edit_question(question_id):
                 if k.endswith('_data') and q_dict.get(k):
                     delete_file_from_supabase(q_dict.get(k))
             q_dict.update(uploaded_media)
+            if 'image_data' in uploaded_media:
+                q_dict['image'] = uploaded_media['image_data']
+            if 'video_data' in uploaded_media:
+                q_dict['video'] = uploaded_media['video_data']
+            if 'audio_data' in uploaded_media:
+                q_dict['audio'] = uploaded_media['audio_data']
         except Exception as e:
             flash(f"Media upload failed: {str(e)}", 'danger')
 
