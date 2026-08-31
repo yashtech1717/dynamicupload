@@ -170,11 +170,20 @@ class SupabaseDoc:
 class SupabaseUser(UserMixin):
     def __init__(self, doc_data):
         self._data = doc_data or {}
-        self.id = str(self._data.get('id', ''))
-        self.username = self._data.get('username', '')
+        raw_id = self._data.get('id')
+        username = str(self._data.get('username', '')).strip()
+        if not raw_id:
+            if username.lower() == 'yash':
+                raw_id = 1
+            elif username.lower() in ('glory', 'lory'):
+                raw_id = 2
+            else:
+                raw_id = str(abs(hash(username)) % 100000 + 10) if username else '1'
+        self.id = str(raw_id)
+        self.username = username
         self.password_hash = self._data.get('password_hash', '')
-        self.is_admin = bool(self._data.get('is_admin', False))
-        self.is_friend = bool(self._data.get('is_friend', False))
+        self.is_admin = bool(self._data.get('is_admin', False)) or (username.lower() == 'yash')
+        self.is_friend = bool(self._data.get('is_friend', False)) or (username.lower() in ('yash', 'glory', 'lory'))
         self.created_at = SafeDateTime(self._data.get('created_at'))
         self.last_login = SafeDateTime(self._data.get('last_login'))
 
@@ -1535,14 +1544,13 @@ def login():
         
         if clean_u == admin_name.lower() and pwd_clean == admin_pwd:
             user_data = {
+                'id': getattr(user, 'id', 1) or 1,
                 'username': admin_name,
                 'password_hash': generate_password_hash(admin_pwd),
                 'is_admin': True,
                 'is_friend': True,
                 'last_login': datetime.utcnow().isoformat()
             }
-            if user:
-                user_data['id'] = user.id
             saved_u = save_user(user_data) or user or SupabaseUser(user_data)
             login_user(saved_u, remember=True)
             flash(f'Welcome back Admin, {saved_u.username}!', 'success')
@@ -1550,14 +1558,13 @@ def login():
 
         elif clean_u == friend_name.lower() and pwd_clean == friend_pwd:
             user_data = {
+                'id': getattr(user, 'id', 2) or 2,
                 'username': friend_name,
                 'password_hash': generate_password_hash(friend_pwd),
                 'is_admin': False,
                 'is_friend': True,
                 'last_login': datetime.utcnow().isoformat()
             }
-            if user:
-                user_data['id'] = user.id
             saved_u = save_user(user_data) or user or SupabaseUser(user_data)
             login_user(saved_u, remember=True)
             flash(f'Welcome back, {saved_u.username}!', 'success')
