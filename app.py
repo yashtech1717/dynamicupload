@@ -173,9 +173,82 @@ def save_firestore_doc(coll_name, doc_dict):
         logger.error(f"Error saving Firestore doc to {coll_name}: {e}")
         return None
 
+LOCAL_DB_PATH = os.path.join(os.path.dirname(__file__), 'instance', 'yash_world.db')
+
+def fetch_sqlite_collection(table_name):
+    if not os.path.exists(LOCAL_DB_PATH):
+        return []
+    try:
+        import sqlite3
+        conn = sqlite3.connect(LOCAL_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        t_map = {
+            'questions': 'question',
+            'replies': 'reply',
+            'users': 'user',
+            'feedback_questions': 'feedback_question',
+            'typing_text': 'typing_text',
+            'typing_texts': 'typing_text',
+            'reels': 'reels'
+        }
+        t_name = t_map.get(table_name, table_name)
+        
+        cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{t_name}';")
+        if not cursor.fetchone():
+            conn.close()
+            return []
+            
+        cursor.execute(f"SELECT * FROM {t_name}")
+        rows = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return rows
+    except Exception as e:
+        logger.warning(f"Note reading SQLite table {table_name}: {e}")
+        return []
+
+def sync_sqlite_to_cloud():
+    try:
+        if not os.path.exists(LOCAL_DB_PATH):
+            return
+        logger.info("📦 Checking local SQLite database (instance/yash_world.db) for data sync...")
+        
+        # 1. Sync Users
+        u_rows = fetch_sqlite_collection('users')
+        for u in u_rows:
+            save_user(u)
+            
+        # 2. Sync Questions
+        q_rows = fetch_sqlite_collection('questions')
+        for q in q_rows:
+            save_question(q)
+            
+        # 3. Sync Replies
+        r_rows = fetch_sqlite_collection('replies')
+        for r in r_rows:
+            save_reply(r)
+            
+        # 4. Sync Typing Text
+        tt_rows = fetch_sqlite_collection('typing_text')
+        if firebase_initialized and db_firestore:
+            for tt in tt_rows:
+                save_firestore_doc('typing_text', tt)
+
+        # 5. Sync Feedback Questions
+        fq_rows = fetch_sqlite_collection('feedback_questions')
+        if firebase_initialized and db_firestore:
+            for fq in fq_rows:
+                save_firestore_doc('feedback_questions', fq)
+
+        logger.info(f"✅ Synced {len(q_rows)} questions, {len(r_rows)} replies, and {len(u_rows)} users from instance/yash_world.db!")
+    except Exception as e:
+        logger.warning(f"Note during SQLite cloud sync: {e}")
+
 # Call Cloud Inits
 init_supabase()
 init_firebase()
+sync_sqlite_to_cloud()
 
 @app.template_filter('format_datetime')
 def format_datetime_filter(value, fmt='%d %b %Y, %H:%M'):
@@ -939,14 +1012,28 @@ def get_all_typing_texts():
         return []
 
 def get_active_typing_text():
-    if not supabase_initialized or not supabase_client:
-        return None
-    try:
-        res = supabase_client.table('typing_texts').select('*').eq('is_active', True).limit(1).execute()
-        if res.data and len(res.data) > 0:
-            return SupabaseDoc(res.data[0])
-    except Exception as e:
-        logger.error(f"Error fetching active typing text: {e}")
+    if supabase_initialized and supabase_client:
+        try:
+            res = supabase_client.table('typing_texts').select('*').eq('is_active', True).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                return SupabaseDoc(res.data[0])
+        except Exception:
+            pass
+
+    if firebase_initialized and db_firestore:
+        try:
+            fs_t = fetch_firestore_collection('typing_text')
+            for t in fs_t:
+                if t.get('is_active'):
+                    return SupabaseDoc(t)
+        except Exception:
+            pass
+
+    sq_t = fetch_sqlite_collection('typing_text')
+    for t in sq_t:
+        if t.get('is_active'):
+            return SupabaseDoc(t)
+
     return None
 
 def save_typing_text(text_str, is_active=True):
