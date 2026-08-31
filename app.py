@@ -1481,14 +1481,57 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         
+        admin_name = os.environ.get('ADMIN_USERNAME', 'yash').strip()
+        admin_pwd = os.environ.get('ADMIN_PASSWORD', 'admin123').strip()
+        friend_name = os.environ.get('FRIEND_USERNAME', 'Glory').strip()
+        friend_pwd = os.environ.get('FRIEND_PASSWORD', 'lory').strip()
+        
         user = get_user_by_username(username)
+        
+        # 1. Attempt standard password verification
         if user and user.check_password(password):
             login_user(user, remember=True)
             save_user({'id': user.id, 'last_login': datetime.utcnow().isoformat()})
             flash(f'Welcome back, {user.username}!', 'success')
             return redirect(url_for('dashboard'))
-        else:
-            flash('Invalid username or password.', 'danger')
+            
+        # 2. Fallback check & auto-healing for Default Admin / Friend credentials
+        clean_u = username.lower()
+        pwd_clean = password.strip()
+        
+        if clean_u == admin_name.lower() and pwd_clean == admin_pwd:
+            user_data = {
+                'username': admin_name,
+                'password_hash': generate_password_hash(admin_pwd),
+                'is_admin': True,
+                'is_friend': True,
+                'last_login': datetime.utcnow().isoformat()
+            }
+            if user:
+                user_data['id'] = user.id
+            saved_u = save_user(user_data)
+            if saved_u:
+                login_user(saved_u, remember=True)
+                flash(f'Welcome back Admin, {saved_u.username}!', 'success')
+                return redirect(url_for('dashboard'))
+
+        elif clean_u == friend_name.lower() and pwd_clean == friend_pwd:
+            user_data = {
+                'username': friend_name,
+                'password_hash': generate_password_hash(friend_pwd),
+                'is_admin': False,
+                'is_friend': True,
+                'last_login': datetime.utcnow().isoformat()
+            }
+            if user:
+                user_data['id'] = user.id
+            saved_u = save_user(user_data)
+            if saved_u:
+                login_user(saved_u, remember=True)
+                flash(f'Welcome back, {saved_u.username}!', 'success')
+                return redirect(url_for('dashboard'))
+                
+        flash('Invalid username or password.', 'danger')
             
     return render_template('login.html')
 
