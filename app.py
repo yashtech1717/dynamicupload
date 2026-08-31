@@ -216,18 +216,24 @@ def sync_sqlite_to_cloud():
         
         # 1. Sync Users
         u_rows = fetch_sqlite_collection('users')
+        u_synced = 0
         for u in u_rows:
-            save_user(u)
+            if save_user(u):
+                u_synced += 1
             
         # 2. Sync Questions
         q_rows = fetch_sqlite_collection('questions')
+        q_synced = 0
         for q in q_rows:
-            save_question(q)
+            if save_question(q):
+                q_synced += 1
             
         # 3. Sync Replies
         r_rows = fetch_sqlite_collection('replies')
+        r_synced = 0
         for r in r_rows:
-            save_reply(r)
+            if save_reply(r):
+                r_synced += 1
             
         # 4. Sync Typing Text
         tt_rows = fetch_sqlite_collection('typing_text')
@@ -241,7 +247,7 @@ def sync_sqlite_to_cloud():
             for fq in fq_rows:
                 save_firestore_doc('feedback_questions', fq)
 
-        logger.info(f"✅ Synced {len(q_rows)} questions, {len(r_rows)} replies, and {len(u_rows)} users from instance/yash_world.db!")
+        logger.info(f"✅ Successfully synced {q_synced}/{len(q_rows)} questions, {r_synced}/{len(r_rows)} replies, and {u_synced}/{len(u_rows)} users from instance/yash_world.db to Cloud!")
     except Exception as e:
         logger.warning(f"Note during SQLite cloud sync: {e}")
 
@@ -802,19 +808,28 @@ def get_question_by_id(question_id):
 def _sanitize_for_json(val):
     if val is None:
         return None
-    if hasattr(val, 'isoformat'):
-        return val.isoformat()
-    if hasattr(val, 'val') and hasattr(val.val, 'isoformat'):
-        return val.val.isoformat()
-    if hasattr(val, 'val'):
-        return str(val.val)
     if isinstance(val, (datetime, date)):
         return val.isoformat()
-    if hasattr(val, 'to_dict'):
-        return _sanitize_for_json(val.to_dict())
+    if hasattr(val, 'isoformat') and callable(getattr(val, 'isoformat')):
+        try:
+            return val.isoformat()
+        except Exception:
+            pass
+    if hasattr(val, 'val'):
+        if hasattr(val.val, 'isoformat') and callable(getattr(val.val, 'isoformat')):
+            try:
+                return val.val.isoformat()
+            except Exception:
+                pass
+        return str(val.val)
+    if hasattr(val, 'to_dict') and callable(getattr(val, 'to_dict')):
+        try:
+            return _sanitize_for_json(val.to_dict())
+        except Exception:
+            pass
     if isinstance(val, dict):
-        return {k: _sanitize_for_json(v) for k, v in val.items()}
-    if isinstance(val, (list, tuple)):
+        return {str(k): _sanitize_for_json(v) for k, v in val.items()}
+    if isinstance(val, (list, tuple, set)):
         return [_sanitize_for_json(x) for x in val]
     return val
 
