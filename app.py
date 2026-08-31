@@ -208,48 +208,136 @@ def fetch_sqlite_collection(table_name):
         logger.warning(f"Note reading SQLite table {table_name}: {e}")
         return []
 
-def sync_sqlite_to_cloud():
+def sync_sqlite_to_supabase():
+    if not supabase_initialized or not supabase_client:
+        return
     try:
+        # Check if Supabase questions table already has records
+        try:
+            res = supabase_client.table('questions').select('id').limit(1).execute()
+            if res.data and len(res.data) > 0:
+                logger.info("⚡ Supabase PostgreSQL questions table already contains records. Skipping SQLite import.")
+                return
+        except Exception:
+            pass
+
         if not os.path.exists(LOCAL_DB_PATH):
             return
-        logger.info("📦 Checking local SQLite database (instance/yash_world.db) for data sync...")
+
+        logger.info("📦 Checking local SQLite database (instance/yash_world.db) for Supabase data sync...")
         
         # 1. Sync Users
         u_rows = fetch_sqlite_collection('users')
         u_synced = 0
         for u in u_rows:
-            if save_user(u):
+            clean_u = {
+                'id': int(u['id']) if str(u.get('id', '')).isdigit() else None,
+                'username': u.get('username'),
+                'password_hash': u.get('password_hash'),
+                'is_admin': bool(u.get('is_admin', False)),
+                'is_friend': bool(u.get('is_friend', False)),
+                'created_at': u.get('created_at'),
+                'last_login': u.get('last_login')
+            }
+            clean_u = {k: v for k, v in clean_u.items() if v is not None}
+            try:
+                supabase_client.table('users').upsert(clean_u).execute()
                 u_synced += 1
-            
+            except Exception:
+                pass
+
         # 2. Sync Questions
         q_rows = fetch_sqlite_collection('questions')
         q_synced = 0
         for q in q_rows:
-            if save_question(q):
+            clean_q = {
+                'id': int(q['id']) if str(q.get('id', '')).isdigit() else None,
+                'user_id': int(q['user_id']) if str(q.get('user_id', '')).isdigit() else None,
+                'text': q.get('text'),
+                'image_data': q.get('image_data'),
+                'image_filename': q.get('image_filename'),
+                'video_data': q.get('video_data'),
+                'video_filename': q.get('video_filename'),
+                'audio_data': q.get('audio_data'),
+                'audio_filename': q.get('audio_filename'),
+                'answer_text': q.get('answer_text'),
+                'answer_image_data': q.get('answer_image_data'),
+                'answer_image_filename': q.get('answer_image_filename'),
+                'answer_video_data': q.get('answer_video_data'),
+                'answer_video_filename': q.get('answer_video_filename'),
+                'answer_audio_data': q.get('answer_audio_data'),
+                'answer_audio_filename': q.get('answer_audio_filename'),
+                'has_answer': bool(q.get('has_answer', False)),
+                'is_answered': bool(q.get('is_answered', False)),
+                'created_at': q.get('created_at'),
+                'updated_at': q.get('updated_at')
+            }
+            clean_q = {k: v for k, v in clean_q.items() if v is not None}
+            try:
+                supabase_client.table('questions').upsert(clean_q).execute()
                 q_synced += 1
-            
+            except Exception:
+                pass
+
         # 3. Sync Replies
         r_rows = fetch_sqlite_collection('replies')
         r_synced = 0
         for r in r_rows:
-            if save_reply(r):
+            clean_r = {
+                'id': int(r['id']) if str(r.get('id', '')).isdigit() else None,
+                'question_id': int(r['question_id']) if str(r.get('question_id', '')).isdigit() else None,
+                'user_id': int(r['user_id']) if str(r.get('user_id', '')).isdigit() else None,
+                'text': r.get('text'),
+                'image_data': r.get('image_data'),
+                'image_filename': r.get('image_filename'),
+                'video_data': r.get('video_data'),
+                'video_filename': r.get('video_filename'),
+                'audio_data': r.get('audio_data'),
+                'audio_filename': r.get('audio_filename'),
+                'created_at': r.get('created_at'),
+                'updated_at': r.get('updated_at')
+            }
+            clean_r = {k: v for k, v in clean_r.items() if v is not None}
+            try:
+                supabase_client.table('replies').upsert(clean_r).execute()
                 r_synced += 1
-            
+            except Exception:
+                pass
+
         # 4. Sync Typing Text
         tt_rows = fetch_sqlite_collection('typing_text')
-        if firebase_initialized and db_firestore:
-            for tt in tt_rows:
-                save_firestore_doc('typing_text', tt)
+        for tt in tt_rows:
+            clean_tt = {
+                'id': int(tt['id']) if str(tt.get('id', '')).isdigit() else None,
+                'text': tt.get('text'),
+                'is_active': bool(tt.get('is_active', True)),
+                'created_at': tt.get('created_at'),
+                'updated_at': tt.get('updated_at')
+            }
+            clean_tt = {k: v for k, v in clean_tt.items() if v is not None}
+            try:
+                supabase_client.table('typing_texts').upsert(clean_tt).execute()
+            except Exception:
+                pass
 
         # 5. Sync Feedback Questions
         fq_rows = fetch_sqlite_collection('feedback_questions')
-        if firebase_initialized and db_firestore:
-            for fq in fq_rows:
-                save_firestore_doc('feedback_questions', fq)
+        for fq in fq_rows:
+            clean_fq = {
+                'id': int(fq['id']) if str(fq.get('id', '')).isdigit() else None,
+                'question': fq.get('question'),
+                'is_active': bool(fq.get('is_active', True)),
+                'created_at': fq.get('created_at')
+            }
+            clean_fq = {k: v for k, v in clean_fq.items() if v is not None}
+            try:
+                supabase_client.table('feedback_questions').upsert(clean_fq).execute()
+            except Exception:
+                pass
 
-        logger.info(f"✅ Successfully synced {q_synced}/{len(q_rows)} questions, {r_synced}/{len(r_rows)} replies, and {u_synced}/{len(u_rows)} users from instance/yash_world.db to Cloud!")
+        logger.info(f"⚡ Successfully synced {q_synced}/{len(q_rows)} questions, {r_synced}/{len(r_rows)} replies, and {u_synced}/{len(u_rows)} users from SQLite to Supabase PostgreSQL!")
     except Exception as e:
-        logger.warning(f"Note during SQLite cloud sync: {e}")
+        logger.warning(f"Note during SQLite to Supabase sync: {e}")
 
 # Call Cloud Inits
 init_supabase()
@@ -2758,8 +2846,8 @@ def delete_reel(reel_id):
 # ============================================================
 
 def seed_supabase_defaults():
-    # 0. Sync local SQLite yash_world.db to Cloud (Firebase / Supabase)
-    sync_sqlite_to_cloud()
+    # 0. Sync local SQLite yash_world.db to Supabase PostgreSQL (one-time safe sync)
+    sync_sqlite_to_supabase()
     if not supabase_initialized or not supabase_client:
         return
     try:
