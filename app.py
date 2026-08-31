@@ -302,16 +302,50 @@ def get_all_users():
         return list({v for k, v in _USER_CACHE.items() if isinstance(v, SupabaseUser)})
 
 def save_user(user_dict):
-    if not supabase_initialized or not supabase_client or not user_dict:
+    if not user_dict:
         return None
     try:
-        res = supabase_client.table('users').upsert(user_dict).execute()
-        if res.data and len(res.data) > 0:
-            return SupabaseUser(res.data[0])
-        return get_user_by_id(user_dict.get('id'))
+        clean_user_dict = {k: _sanitize_for_json(v) for k, v in user_dict.items()}
+        res = None
+        if supabase_initialized and supabase_client:
+            if 'id' in clean_user_dict and clean_user_dict['id']:
+                target_id = int(clean_user_dict['id']) if str(clean_user_dict['id']).isdigit() else clean_user_dict['id']
+                update_payload = {k: v for k, v in clean_user_dict.items() if k != 'id'}
+                try:
+                    res = supabase_client.table('users').update(update_payload).eq('id', target_id).select().execute()
+                except Exception:
+                    try:
+                        res = supabase_client.table('users').upsert(clean_user_dict).select().execute()
+                    except Exception:
+                        pass
+            else:
+                try:
+                    res = supabase_client.table('users').insert(clean_user_dict).select().execute()
+                except Exception:
+                    try:
+                        res = supabase_client.table('users').upsert(clean_user_dict).select().execute()
+                    except Exception:
+                        pass
+
+        if res and hasattr(res, 'data') and res.data and len(res.data) > 0:
+            u_obj = SupabaseUser(res.data[0])
+            _USER_CACHE[str(u_obj.id)] = u_obj
+            _USER_CACHE[u_obj.username.lower()] = u_obj
+            return u_obj
+
+        u_by_name = get_user_by_username(clean_user_dict.get('username'))
+        if u_by_name:
+            return u_by_name
+        fallback_u = SupabaseUser(clean_user_dict)
+        _USER_CACHE[str(fallback_u.id or '1')] = fallback_u
+        _USER_CACHE[fallback_u.username.lower()] = fallback_u
+        return fallback_u
     except Exception as e:
         logger.error(f"Error saving user: {e}")
-        return None
+        fallback_u = SupabaseUser(user_dict)
+        _USER_CACHE[str(fallback_u.id or '1')] = fallback_u
+        _USER_CACHE[fallback_u.username.lower()] = fallback_u
+        return fallback_u
 
 def get_next_id(table_name):
     if not supabase_initialized or not supabase_client:
@@ -1509,11 +1543,10 @@ def login():
             }
             if user:
                 user_data['id'] = user.id
-            saved_u = save_user(user_data)
-            if saved_u:
-                login_user(saved_u, remember=True)
-                flash(f'Welcome back Admin, {saved_u.username}!', 'success')
-                return redirect(url_for('dashboard'))
+            saved_u = save_user(user_data) or user or SupabaseUser(user_data)
+            login_user(saved_u, remember=True)
+            flash(f'Welcome back Admin, {saved_u.username}!', 'success')
+            return redirect(url_for('dashboard'))
 
         elif clean_u == friend_name.lower() and pwd_clean == friend_pwd:
             user_data = {
@@ -1525,11 +1558,10 @@ def login():
             }
             if user:
                 user_data['id'] = user.id
-            saved_u = save_user(user_data)
-            if saved_u:
-                login_user(saved_u, remember=True)
-                flash(f'Welcome back, {saved_u.username}!', 'success')
-                return redirect(url_for('dashboard'))
+            saved_u = save_user(user_data) or user or SupabaseUser(user_data)
+            login_user(saved_u, remember=True)
+            flash(f'Welcome back, {saved_u.username}!', 'success')
+            return redirect(url_for('dashboard'))
                 
         flash('Invalid username or password.', 'danger')
             
