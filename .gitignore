@@ -36,9 +36,7 @@ service-account.json
 !render.yaml
 
 # SQLite Database / Instance files
-instance/
-*.db
-*.sqlite3
+!instance/yash_world.db
 
 # IDE & OS
 .vscode/
