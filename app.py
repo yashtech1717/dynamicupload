@@ -28,7 +28,9 @@ logger = logging.getLogger(__name__)
 # ============================================================
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'yash-world-secret-key-2024')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'yash-world-secret-key-2026-static-production-key-v1')
+app.config['REMEMBER_COOKIE_NAME'] = 'yash_remember_token'
+app.config['SESSION_PROTECTION'] = 'basic'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100 MB max payload limit
 
 login_manager = LoginManager()
@@ -1408,11 +1410,21 @@ def delete_file_from_supabase(url_or_path):
 
 @login_manager.user_loader
 def load_user(user_id):
+    if not user_id:
+        return None
     try:
-        return get_user_by_id(user_id)
+        u = get_user_by_id(user_id)
+        if u:
+            return u
     except Exception as e:
         logger.error(f"Error in load_user callback for user_id {user_id}: {e}")
-        return None
+        
+    u_str = str(user_id).strip()
+    if u_str == '1':
+        return SupabaseUser({'id': 1, 'username': 'yash', 'is_admin': True, 'is_friend': True})
+    elif u_str == '2':
+        return SupabaseUser({'id': 2, 'username': 'Glory', 'is_admin': False, 'is_friend': True})
+    return None
 
 def admin_required(f):
     @wraps(f)
@@ -1542,9 +1554,9 @@ def login():
         clean_u = username.lower()
         pwd_clean = password.strip()
         
-        if clean_u == admin_name.lower() and pwd_clean == admin_pwd:
+        if clean_u in ('yash', admin_name.lower()) and pwd_clean == admin_pwd:
             user_data = {
-                'id': getattr(user, 'id', 1) or 1,
+                'id': 1,
                 'username': admin_name,
                 'password_hash': generate_password_hash(admin_pwd),
                 'is_admin': True,
@@ -1553,12 +1565,13 @@ def login():
             }
             saved_u = save_user(user_data) or user or SupabaseUser(user_data)
             login_user(saved_u, remember=True)
+            session['user_id'] = str(saved_u.id)
             flash(f'Welcome back Admin, {saved_u.username}!', 'success')
             return redirect(url_for('dashboard'))
 
-        elif clean_u == friend_name.lower() and pwd_clean == friend_pwd:
+        elif clean_u in ('glory', 'lory', friend_name.lower()) and pwd_clean == friend_pwd:
             user_data = {
-                'id': getattr(user, 'id', 2) or 2,
+                'id': 2,
                 'username': friend_name,
                 'password_hash': generate_password_hash(friend_pwd),
                 'is_admin': False,
@@ -1567,6 +1580,7 @@ def login():
             }
             saved_u = save_user(user_data) or user or SupabaseUser(user_data)
             login_user(saved_u, remember=True)
+            session['user_id'] = str(saved_u.id)
             flash(f'Welcome back, {saved_u.username}!', 'success')
             return redirect(url_for('dashboard'))
                 
