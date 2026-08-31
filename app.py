@@ -211,58 +211,95 @@ _DEFAULT_FRIEND_USER = os.environ.get('FRIEND_USERNAME', 'Glory')
 _DEFAULT_ADMIN_HASH = generate_password_hash(os.environ.get('ADMIN_PASSWORD', 'admin123'))
 _DEFAULT_FRIEND_HASH = generate_password_hash(os.environ.get('FRIEND_PASSWORD', 'lory'))
 
+_USER_CACHE = {}
+
+def safe_supabase_query(fn, retries=3, delay=0.5):
+    last_err = None
+    for attempt in range(retries):
+        try:
+            return fn()
+        except Exception as e:
+            last_err = e
+            err_str = str(e).lower()
+            if any(k in err_str for k in ('name or service not known', 'connecterror', 'connection', 'timeout')):
+                logger.warning(f"⚠️ Supabase network glitch (attempt {attempt+1}/{retries}): {e}. Retrying in {delay}s...")
+                time.sleep(delay)
+                delay *= 2
+            else:
+                raise e
+    raise last_err
+
 def get_user_by_id(user_id):
     if not user_id:
         return None
+    u_id_str = str(user_id)
     if not supabase_initialized or not supabase_client:
-        raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
+        return _USER_CACHE.get(u_id_str)
     try:
-        target_id = int(user_id) if str(user_id).isdigit() else user_id
-        res = supabase_client.table('users').select('*').eq('id', target_id).limit(1).execute()
-        if res.data and len(res.data) > 0:
-            return SupabaseUser(res.data[0])
-        return None
+        def _exec():
+            target_id = int(user_id) if str(user_id).isdigit() else user_id
+            res = supabase_client.table('users').select('*').eq('id', target_id).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                u_obj = SupabaseUser(res.data[0])
+                _USER_CACHE[str(u_obj.id)] = u_obj
+                _USER_CACHE[u_obj.username.lower()] = u_obj
+                return u_obj
+            return None
+        return safe_supabase_query(_exec)
     except Exception as e:
         logger.error(f"Error fetching user by id {user_id}: {e}")
-        raise RuntimeError(f"Supabase read error fetching user {user_id}: {e}")
+        return _USER_CACHE.get(u_id_str)
 
 def get_user_by_username(username):
     if not username:
         return None
+    clean_user = username.strip()
     if not supabase_initialized or not supabase_client:
-        raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
+        return _USER_CACHE.get(clean_user.lower())
     try:
-        clean_user = username.strip()
-        # 1. Exact username match
-        res = supabase_client.table('users').select('*').eq('username', clean_user).limit(1).execute()
-        if res.data and len(res.data) > 0:
-            return SupabaseUser(res.data[0])
-            
-        # 2. Case-insensitive ilike match
-        res_ilike = supabase_client.table('users').select('*').ilike('username', clean_user).limit(1).execute()
-        if res_ilike.data and len(res_ilike.data) > 0:
-            return SupabaseUser(res_ilike.data[0])
-            
-        # 3. Fallback: all users case-insensitive search
-        all_u = get_all_users()
-        for u in all_u:
-            if u.username.lower() == clean_user.lower():
-                return u
-        return None
+        def _exec():
+            # 1. Exact username match
+            res = supabase_client.table('users').select('*').eq('username', clean_user).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                u_obj = SupabaseUser(res.data[0])
+                _USER_CACHE[str(u_obj.id)] = u_obj
+                _USER_CACHE[u_obj.username.lower()] = u_obj
+                return u_obj
+                
+            # 2. Case-insensitive ilike match
+            res_ilike = supabase_client.table('users').select('*').ilike('username', clean_user).limit(1).execute()
+            if res_ilike.data and len(res_ilike.data) > 0:
+                u_obj = SupabaseUser(res_ilike.data[0])
+                _USER_CACHE[str(u_obj.id)] = u_obj
+                _USER_CACHE[u_obj.username.lower()] = u_obj
+                return u_obj
+                
+            # 3. Fallback: all users case-insensitive search
+            all_u = get_all_users()
+            for u in all_u:
+                if u.username.lower() == clean_user.lower():
+                    return u
+            return None
+        return safe_supabase_query(_exec)
     except Exception as e:
         logger.error(f"Error fetching user by username {username}: {e}")
-        raise RuntimeError(f"Supabase read error fetching user {username}: {e}")
+        return _USER_CACHE.get(clean_user.lower())
 
 def get_all_users():
     if not supabase_initialized or not supabase_client:
-        raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
+        return list({v for k, v in _USER_CACHE.items() if isinstance(v, SupabaseUser)})
     try:
-        res = supabase_client.table('users').select('*').order('id').execute()
-        users = [SupabaseUser(d) for d in (res.data or [])]
-        return users
+        def _exec():
+            res = supabase_client.table('users').select('*').order('id').execute()
+            users = [SupabaseUser(d) for d in (res.data or [])]
+            for u in users:
+                _USER_CACHE[str(u.id)] = u
+                _USER_CACHE[u.username.lower()] = u
+            return users
+        return safe_supabase_query(_exec)
     except Exception as e:
         logger.error(f"Error fetching all users: {e}")
-        raise RuntimeError(f"Supabase read error fetching all users: {e}")
+        return list({v for k, v in _USER_CACHE.items() if isinstance(v, SupabaseUser)})
 
 def save_user(user_dict):
     if not supabase_initialized or not supabase_client or not user_dict:
@@ -417,43 +454,43 @@ def save_local_question_order(ordered_ids):
 def get_all_questions():
     def _fetch():
         if not supabase_initialized or not supabase_client:
-            raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
+            return []
         try:
-            users_map = {str(u.id): u for u in get_all_users()}
-            res = supabase_client.table('questions').select('*').execute()
-            questions = []
-            for d in (res.data or []):
-                # Hide stealth snapshots from regular question lists
-                if d.get('text') == '[FRIEND SNAPSHOT]':
-                    continue
-                u_id = str(d.get('user_id'))
-                asker = users_map.get(u_id)
-                if asker:
-                    d['asker'] = {'username': asker.username, 'id': asker.id}
-                questions.append(SupabaseDoc(d))
-            
-            # Sort according to persistent question_order.json first, then display_order, then created_at
-            order_list = [str(x) for x in load_local_question_order()]
-            order_map = {q_id: idx for idx, q_id in enumerate(order_list)}
-
-            def sort_key(q):
-                q_id_str = str(getattr(q, 'id', ''))
-                if q_id_str in order_map:
-                    return (0, order_map[q_id_str])
+            def _exec():
+                users_map = {str(u.id): u for u in get_all_users()}
+                res = supabase_client.table('questions').select('*').execute()
+                questions = []
+                for d in (res.data or []):
+                    if d.get('text') == '[FRIEND SNAPSHOT]':
+                        continue
+                    u_id = str(d.get('user_id'))
+                    asker = users_map.get(u_id)
+                    if asker:
+                        d['asker'] = {'username': asker.username, 'id': asker.id}
+                    questions.append(SupabaseDoc(d))
                 
-                d_order = getattr(q, 'display_order', None)
-                if d_order is not None and str(d_order).isdigit() and int(d_order) > 0:
-                    return (1, int(d_order))
-                    
-                created = getattr(q, 'created_at', None)
-                dt_str = str(created.val) if hasattr(created, 'val') and created.val else str(created or '')
-                return (2, dt_str)
+                order_list = [str(x) for x in load_local_question_order()]
+                order_map = {q_id: idx for idx, q_id in enumerate(order_list)}
 
-            questions.sort(key=sort_key)
-            return questions
+                def sort_key(q):
+                    q_id_str = str(getattr(q, 'id', ''))
+                    if q_id_str in order_map:
+                        return (0, order_map[q_id_str])
+                    
+                    d_order = getattr(q, 'display_order', None)
+                    if d_order is not None and str(d_order).isdigit() and int(d_order) > 0:
+                        return (1, int(d_order))
+                        
+                    created = getattr(q, 'created_at', None)
+                    dt_str = str(created.val) if hasattr(created, 'val') and created.val else str(created or '')
+                    return (2, dt_str)
+
+                questions.sort(key=sort_key)
+                return questions
+            return safe_supabase_query(_exec)
         except Exception as e:
             logger.error(f"Error fetching all questions: {e}")
-            raise RuntimeError(f"Supabase read error fetching all questions: {e}")
+            return []
     return get_cached('all_questions', _fetch, ttl=5)
 
 def update_question_order_list(ordered_ids):
@@ -662,29 +699,31 @@ def get_replies_for_question(question_id):
 def get_all_replies():
     def _fetch():
         if not supabase_initialized or not supabase_client:
-            raise RuntimeError("Supabase PostgreSQL is unavailable. Database connection failed.")
+            return []
         try:
-            users_map = {str(u.id): u for u in get_all_users()}
-            res = supabase_client.table('replies').select('*').order('created_at', desc=True).execute()
-            
-            q_res = supabase_client.table('questions').select('*').execute()
-            q_map = {str(qd.get('id')): qd for qd in (q_res.data or [])}
-
-            replies = []
-            for d in (res.data or []):
-                u_id = str(d.get('user_id'))
-                replier = users_map.get(u_id)
-                if replier:
-                    d['replier'] = {'username': replier.username, 'id': replier.id}
+            def _exec():
+                users_map = {str(u.id): u for u in get_all_users()}
+                res = supabase_client.table('replies').select('*').order('created_at', desc=True).execute()
                 
-                q_id = str(d.get('question_id'))
-                if q_id in q_map:
-                    d['question'] = q_map[q_id]
-                replies.append(SupabaseDoc(d))
-            return replies
+                q_res = supabase_client.table('questions').select('*').execute()
+                q_map = {str(qd.get('id')): qd for qd in (q_res.data or [])}
+
+                replies = []
+                for d in (res.data or []):
+                    u_id = str(d.get('user_id'))
+                    replier = users_map.get(u_id)
+                    if replier:
+                        d['replier'] = {'username': replier.username, 'id': replier.id}
+                    
+                    q_id = str(d.get('question_id'))
+                    if q_id in q_map:
+                        d['question'] = q_map[q_id]
+                    replies.append(SupabaseDoc(d))
+                return replies
+            return safe_supabase_query(_exec)
         except Exception as e:
             logger.error(f"Error fetching all replies: {e}")
-            raise RuntimeError(f"Supabase read error fetching all replies: {e}")
+            return []
     return get_cached('all_replies', _fetch, ttl=10)
 
 def save_reply(r_dict):
@@ -1326,7 +1365,11 @@ def delete_file_from_supabase(url_or_path):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return get_user_by_id(user_id)
+    try:
+        return get_user_by_id(user_id)
+    except Exception as e:
+        logger.error(f"Error in load_user callback for user_id {user_id}: {e}")
+        return None
 
 def admin_required(f):
     @wraps(f)
@@ -1519,7 +1562,20 @@ def dashboard():
         )
     except Exception as e:
         logger.error(f"Dashboard error: {e}", exc_info=True)
-        raise RuntimeError(f"Dashboard query error: {e}")
+        return render_template('dashboard.html', 
+            questions=[],
+            current_question=None,
+            current_index=0,
+            total_questions=0,
+            total_replies_count=0,
+            replies=[],
+            is_admin=bool(getattr(current_user, 'is_admin', False)),
+            is_friend=bool(getattr(current_user, 'is_friend', False)),
+            current_user=current_user,
+            feedback_questions=[],
+            typing_text=None,
+            show_typing=False
+        )
 
 @app.route('/navigate-question', methods=['POST'])
 @login_required
