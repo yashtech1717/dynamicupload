@@ -248,7 +248,6 @@ def sync_sqlite_to_cloud():
 # Call Cloud Inits
 init_supabase()
 init_firebase()
-sync_sqlite_to_cloud()
 
 @app.template_filter('format_datetime')
 def format_datetime_filter(value, fmt='%d %b %Y, %H:%M'):
@@ -820,7 +819,7 @@ def _sanitize_for_json(val):
     return val
 
 def save_question(q_dict):
-    if not supabase_initialized or not supabase_client or not q_dict:
+    if not q_dict:
         return None
     try:
         clean_dict = {}
@@ -833,54 +832,51 @@ def save_question(q_dict):
             clean_dict['created_at'] = datetime.utcnow().isoformat()
         clean_dict['updated_at'] = datetime.utcnow().isoformat()
 
-        if 'id' in clean_dict and clean_dict['id']:
-            raw_id = clean_dict['id']
-            target_id = int(raw_id) if str(raw_id).isdigit() else raw_id
-            update_payload = {k: v for k, v in clean_dict.items() if k != 'id'}
-            
-            # 1. Try full update payload
-            res = None
-            try:
-                res = supabase_client.table('questions').update(update_payload).eq('id', target_id).select().execute()
-                if not res.data:
-                    res = supabase_client.table('questions').update(update_payload).eq('id', str(raw_id)).select().execute()
-            except Exception as ex1:
-                logger.warning(f"Full update failed, trying pruned standard columns: {ex1}")
-                standard_cols = (
-                    'text', 'user_id', 'type', 'marks', 'display_order',
-                    'image', 'image_data', 'image_filename',
-                    'video', 'video_data', 'video_filename',
-                    'audio', 'audio_data', 'audio_filename',
-                    'answer_text', 'has_answer', 'is_answered',
-                    'answer_image_data', 'answer_video_data', 'answer_audio_data',
-                    'created_at', 'updated_at'
-                )
-                pruned_payload = {k: v for k, v in update_payload.items() if k in standard_cols}
+        # Save to Firebase Firestore if active
+        if firebase_initialized and db_firestore:
+            save_firestore_doc('questions', clean_dict)
+
+        # Save to Supabase if active
+        res = None
+        if supabase_initialized and supabase_client:
+            if 'id' in clean_dict and clean_dict['id']:
+                raw_id = clean_dict['id']
+                target_id = int(raw_id) if str(raw_id).isdigit() else raw_id
+                update_payload = {k: v for k, v in clean_dict.items() if k != 'id'}
                 try:
-                    res = supabase_client.table('questions').update(pruned_payload).eq('id', target_id).select().execute()
+                    res = supabase_client.table('questions').update(update_payload).eq('id', target_id).select().execute()
                     if not res.data:
-                        res = supabase_client.table('questions').update(pruned_payload).eq('id', str(raw_id)).select().execute()
-                except Exception as ex2:
-                    logger.warning(f"Pruned update failed, performing field-by-field updates: {ex2}")
-                    for fk, fv in update_payload.items():
-                        try:
-                            supabase_client.table('questions').update({fk: fv}).eq('id', target_id).select().execute()
-                        except Exception:
-                            try:
-                                supabase_client.table('questions').update({fk: fv}).eq('id', str(raw_id)).select().execute()
-                            except Exception:
-                                pass
-        else:
-            res = supabase_client.table('questions').insert(clean_dict).select().execute()
+                        res = supabase_client.table('questions').update(update_payload).eq('id', str(raw_id)).select().execute()
+                except Exception as ex1:
+                    standard_cols = (
+                        'text', 'user_id', 'type', 'marks', 'display_order',
+                        'image', 'image_data', 'image_filename',
+                        'video', 'video_data', 'video_filename',
+                        'audio', 'audio_data', 'audio_filename',
+                        'answer_text', 'has_answer', 'is_answered',
+                        'answer_image_data', 'answer_video_data', 'answer_audio_data',
+                        'created_at', 'updated_at'
+                    )
+                    pruned_payload = {k: v for k, v in update_payload.items() if k in standard_cols}
+                    try:
+                        res = supabase_client.table('questions').update(pruned_payload).eq('id', target_id).select().execute()
+                        if not res.data:
+                            res = supabase_client.table('questions').update(pruned_payload).eq('id', str(raw_id)).select().execute()
+                    except Exception:
+                        pass
+            else:
+                try:
+                    res = supabase_client.table('questions').insert(clean_dict).select().execute()
+                except Exception:
+                    pass
 
         invalidate_cache('all_questions')
-        logger.info("⚡ Question saved to Supabase PostgreSQL")
         if res and hasattr(res, 'data') and res.data and len(res.data) > 0:
             return SupabaseDoc(res.data[0])
-        return get_question_by_id(q_dict.get('id'))
+        return SupabaseDoc(clean_dict)
     except Exception as e:
         logger.error(f"Error saving question: {e}")
-        return None
+        return SupabaseDoc(q_dict)
 
 def delete_question_doc(question_id):
     if not supabase_initialized or not supabase_client or not question_id:
@@ -962,23 +958,33 @@ def get_all_replies():
     return get_cached('all_replies', _fetch, ttl=10)
 
 def save_reply(r_dict):
-    if not supabase_initialized or not supabase_client or not r_dict:
+    if not r_dict:
         return None
     try:
-        clean_dict = {k: v for k, v in r_dict.items() if k not in ('replier', 'question')}
+        clean_dict = {k: _sanitize_for_json(v) for k, v in r_dict.items() if k not in ('replier', 'question')}
         if 'created_at' not in clean_dict or not clean_dict['created_at']:
             clean_dict['created_at'] = datetime.utcnow().isoformat()
         clean_dict['updated_at'] = datetime.utcnow().isoformat()
 
-        res = supabase_client.table('replies').upsert(clean_dict).execute()
+        # Save to Firebase Firestore if active
+        if firebase_initialized and db_firestore:
+            save_firestore_doc('replies', clean_dict)
+
+        # Save to Supabase if active
+        res = None
+        if supabase_initialized and supabase_client:
+            try:
+                res = supabase_client.table('replies').upsert(clean_dict).select().execute()
+            except Exception:
+                pass
+
         invalidate_cache('all_replies')
-        logger.info("⚡ Reply saved to Supabase PostgreSQL")
-        if res.data and len(res.data) > 0:
+        if res and hasattr(res, 'data') and res.data and len(res.data) > 0:
             return SupabaseDoc(res.data[0])
         return SupabaseDoc(clean_dict)
     except Exception as e:
         logger.error(f"Error saving reply: {e}")
-        return None
+        return SupabaseDoc(r_dict)
 
 def delete_reply_doc(reply_id):
     if not supabase_initialized or not supabase_client or not reply_id:
@@ -2717,6 +2723,8 @@ def delete_reel(reel_id):
 # ============================================================
 
 def seed_supabase_defaults():
+    # 0. Sync local SQLite yash_world.db to Cloud (Firebase / Supabase)
+    sync_sqlite_to_cloud()
     if not supabase_initialized or not supabase_client:
         return
     try:
