@@ -5,4 +5,5 @@ gunicorn>=21.2.0
 python-dotenv>=1.0.0
 setuptools>=68.2.2
 supabase>=2.10.0
+firebase-admin>=6.2.0
 requests>=2.30.0

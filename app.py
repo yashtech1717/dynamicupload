@@ -38,7 +38,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # ============================================================
-# SUPABASE DATABASE & STORAGE CONFIGURATION
+# DUAL DATABASE & STORAGE CONFIGURATION (SUPABASE + FIREBASE)
 # ============================================================
 
 supabase_initialized = False
@@ -47,10 +47,14 @@ supabase_url = None
 supabase_key = None
 supabase_bucket_name = 'media'
 
+firebase_initialized = False
+db_firestore = None
+firebase_bucket = None
+
 def init_supabase():
     global supabase_initialized, supabase_client, supabase_url, supabase_key, supabase_bucket_name
     if supabase_initialized:
-        return
+        return True
 
     try:
         from supabase import create_client, Client
@@ -60,7 +64,6 @@ def init_supabase():
         supabase_bucket_name = os.environ.get('SUPABASE_BUCKET', 'media').strip()
 
         if not supabase_url or not supabase_key:
-            # Fallback check for local development credentials
             env_file = os.path.join(os.path.dirname(__file__), '.env')
             if os.path.exists(env_file):
                 with open(env_file, 'r', encoding='utf-8') as f:
@@ -74,15 +77,105 @@ def init_supabase():
             supabase_client = create_client(supabase_url, supabase_key)
             supabase_initialized = True
             logger.info(f"⚡ Supabase PostgreSQL ({supabase_url}) & Storage ('{supabase_bucket_name}') initialized successfully!")
+            return True
         else:
-            logger.error("❌ CRITICAL: No Supabase credentials found. Please set SUPABASE_URL and SUPABASE_KEY environment variables!")
-            raise RuntimeError("CRITICAL: No Supabase credentials found. Please set SUPABASE_URL and SUPABASE_KEY environment variables.")
+            logger.warning("⚠️ No Supabase credentials found in env. Falling back to Firebase / local storage.")
+            return False
     except Exception as e:
-        logger.error(f"❌ Supabase initialization error: {e}")
-        raise RuntimeError(f"Supabase initialization failed: {e}")
+        logger.warning(f"⚠️ Supabase initialization warning: {e}")
+        return False
 
-# Call Supabase init
+def init_firebase():
+    global firebase_initialized, db_firestore, firebase_bucket
+    if firebase_initialized:
+        return True
+
+    try:
+        import base64
+        import firebase_admin
+        from firebase_admin import credentials, storage, firestore
+
+        service_account_json = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
+        service_account_path = os.path.join(os.path.dirname(__file__), 'service-account.json')
+        cred = None
+
+        if service_account_json:
+            try:
+                sa_str = service_account_json.strip()
+                if not sa_str.startswith('{'):
+                    try:
+                        decoded = base64.b64decode(sa_str).decode('utf-8')
+                        if decoded.strip().startswith('{'):
+                            sa_str = decoded.strip()
+                    except Exception:
+                        pass
+                if (sa_str.startswith("'") and sa_str.endswith("'")) or (sa_str.startswith('"') and sa_str.endswith('"') and not sa_str.startswith('{')):
+                    sa_str = sa_str[1:-1].strip()
+                cred_dict = json.loads(sa_str)
+                if isinstance(cred_dict, dict) and 'private_key' in cred_dict:
+                    if isinstance(cred_dict['private_key'], str) and '\\n' in cred_dict['private_key']:
+                        cred_dict['private_key'] = cred_dict['private_key'].replace('\\n', '\n')
+                cred = credentials.Certificate(cred_dict)
+                logger.info("🔑 Loaded Firebase credentials from FIREBASE_SERVICE_ACCOUNT env var")
+            except Exception as e:
+                logger.error(f"Error parsing FIREBASE_SERVICE_ACCOUNT env var: {e}")
+
+        if not cred and os.path.exists(service_account_path):
+            try:
+                cred = credentials.Certificate(service_account_path)
+                logger.info(f"🔑 Loaded Firebase credentials from file: {service_account_path}")
+            except Exception as e:
+                logger.error(f"Error loading {service_account_path}: {e}")
+
+        if cred:
+            storage_bucket_name = os.environ.get('FIREBASE_STORAGE_BUCKET', 'happybirthday-a287a.appspot.com')
+            if not firebase_admin._apps:
+                firebase_admin.initialize_app(cred, {'storageBucket': storage_bucket_name})
+            db_firestore = firestore.client()
+            firebase_bucket = storage.bucket()
+            firebase_initialized = True
+            logger.info("🔥 Firebase Storage & Firestore initialized successfully!")
+            return True
+    except Exception as e:
+        logger.warning(f"⚠️ Firebase initialization warning: {e}")
+    return False
+
+def fetch_firestore_collection(coll_name):
+    if not firebase_initialized or not db_firestore:
+        return []
+    try:
+        docs = db_firestore.collection(coll_name).stream()
+        results = []
+        for doc in docs:
+            d = doc.to_dict() or {}
+            if 'id' not in d or not d['id']:
+                d['id'] = int(doc.id) if doc.id.isdigit() else doc.id
+            results.append(d)
+        return results
+    except Exception as e:
+        logger.error(f"Error fetching Firestore collection {coll_name}: {e}")
+        return []
+
+def save_firestore_doc(coll_name, doc_dict):
+    if not firebase_initialized or not db_firestore or not doc_dict:
+        return None
+    try:
+        doc_id = str(doc_dict.get('id', ''))
+        clean_d = {k: _sanitize_for_json(v) for k, v in doc_dict.items()}
+        if doc_id:
+            db_firestore.collection(coll_name).document(doc_id).set(clean_d, merge=True)
+        else:
+            new_ref = db_firestore.collection(coll_name).document()
+            clean_d['id'] = new_ref.id
+            new_ref.set(clean_d)
+        return clean_d
+    except Exception as e:
+        logger.error(f"Error saving Firestore doc to {coll_name}: {e}")
+        return None
+
+# Call Cloud Inits
 init_supabase()
+init_firebase()
 
 @app.template_filter('format_datetime')
 def format_datetime_filter(value, fmt='%d %b %Y, %H:%M'):
@@ -297,26 +390,37 @@ def get_user_by_username(username):
         return _USER_CACHE.get(clean_user.lower())
 
 def get_all_users():
-    if not supabase_initialized or not supabase_client:
-        return list({v for k, v in _USER_CACHE.items() if isinstance(v, SupabaseUser)})
-    try:
-        def _exec():
-            res = supabase_client.table('users').select('*').order('id').execute()
-            users = [SupabaseUser(d) for d in (res.data or [])]
-            for u in users:
-                _USER_CACHE[str(u.id)] = u
-                _USER_CACHE[u.username.lower()] = u
-            return users
-        return safe_supabase_query(_exec)
-    except Exception as e:
-        logger.error(f"Error fetching all users: {e}")
-        return list({v for k, v in _USER_CACHE.items() if isinstance(v, SupabaseUser)})
+    users = []
+    if supabase_initialized and supabase_client:
+        try:
+            def _exec():
+                res = supabase_client.table('users').select('*').order('id').execute()
+                return [SupabaseUser(d) for d in (res.data or [])]
+            users = safe_supabase_query(_exec)
+        except Exception as e:
+            logger.warning(f"Supabase get_all_users warning: {e}")
+
+    if not users and firebase_initialized and db_firestore:
+        try:
+            fs_users = fetch_firestore_collection('users')
+            if fs_users:
+                users = [SupabaseUser(d) for d in fs_users]
+        except Exception as e:
+            logger.warning(f"Firebase get_all_users warning: {e}")
+
+    for u in users:
+        _USER_CACHE[str(u.id)] = u
+        _USER_CACHE[u.username.lower()] = u
+        
+    return users or list({v for k, v in _USER_CACHE.items() if isinstance(v, SupabaseUser)})
 
 def save_user(user_dict):
     if not user_dict:
         return None
     try:
         clean_user_dict = {k: _sanitize_for_json(v) for k, v in user_dict.items()}
+        if firebase_initialized and db_firestore:
+            save_firestore_doc('users', clean_user_dict)
         res = None
         if supabase_initialized and supabase_client:
             if 'id' in clean_user_dict and clean_user_dict['id']:
@@ -498,44 +602,51 @@ def save_local_question_order(ordered_ids):
 
 def get_all_questions():
     def _fetch():
-        if not supabase_initialized or not supabase_client:
-            return []
-        try:
-            def _exec():
-                users_map = {str(u.id): u for u in get_all_users()}
-                res = supabase_client.table('questions').select('*').execute()
-                questions = []
-                for d in (res.data or []):
-                    if d.get('text') == '[FRIEND SNAPSHOT]':
-                        continue
-                    u_id = str(d.get('user_id'))
-                    asker = users_map.get(u_id)
-                    if asker:
-                        d['asker'] = {'username': asker.username, 'id': asker.id}
-                    questions.append(SupabaseDoc(d))
+        questions_raw = []
+        if supabase_initialized and supabase_client:
+            try:
+                def _exec():
+                    res = supabase_client.table('questions').select('*').execute()
+                    return res.data or []
+                questions_raw = safe_supabase_query(_exec)
+            except Exception as e:
+                logger.warning(f"Supabase get_all_questions warning: {e}")
+
+        if not questions_raw and firebase_initialized and db_firestore:
+            try:
+                questions_raw = fetch_firestore_collection('questions')
+            except Exception as e:
+                logger.warning(f"Firebase get_all_questions warning: {e}")
+
+        users_map = {str(u.id): u for u in get_all_users()}
+        questions = []
+        for d in questions_raw:
+            if d.get('text') == '[FRIEND SNAPSHOT]':
+                continue
+            u_id = str(d.get('user_id'))
+            asker = users_map.get(u_id)
+            if asker:
+                d['asker'] = {'username': asker.username, 'id': asker.id}
+            questions.append(SupabaseDoc(d))
+        
+        order_list = [str(x) for x in load_local_question_order()]
+        order_map = {q_id: idx for idx, q_id in enumerate(order_list)}
+
+        def sort_key(q):
+            q_id_str = str(getattr(q, 'id', ''))
+            if q_id_str in order_map:
+                return (0, order_map[q_id_str])
+            
+            d_order = getattr(q, 'display_order', None)
+            if d_order is not None and str(d_order).isdigit() and int(d_order) > 0:
+                return (1, int(d_order))
                 
-                order_list = [str(x) for x in load_local_question_order()]
-                order_map = {q_id: idx for idx, q_id in enumerate(order_list)}
+            created = getattr(q, 'created_at', None)
+            dt_str = str(created.val) if hasattr(created, 'val') and created.val else str(created or '')
+            return (2, dt_str)
 
-                def sort_key(q):
-                    q_id_str = str(getattr(q, 'id', ''))
-                    if q_id_str in order_map:
-                        return (0, order_map[q_id_str])
-                    
-                    d_order = getattr(q, 'display_order', None)
-                    if d_order is not None and str(d_order).isdigit() and int(d_order) > 0:
-                        return (1, int(d_order))
-                        
-                    created = getattr(q, 'created_at', None)
-                    dt_str = str(created.val) if hasattr(created, 'val') and created.val else str(created or '')
-                    return (2, dt_str)
-
-                questions.sort(key=sort_key)
-                return questions
-            return safe_supabase_query(_exec)
-        except Exception as e:
-            logger.error(f"Error fetching all questions: {e}")
-            return []
+        questions.sort(key=sort_key)
+        return questions
     return get_cached('all_questions', _fetch, ttl=5)
 
 def update_question_order_list(ordered_ids):
@@ -743,32 +854,38 @@ def get_replies_for_question(question_id):
 
 def get_all_replies():
     def _fetch():
-        if not supabase_initialized or not supabase_client:
-            return []
-        try:
-            def _exec():
-                users_map = {str(u.id): u for u in get_all_users()}
-                res = supabase_client.table('replies').select('*').order('created_at', desc=True).execute()
-                
-                q_res = supabase_client.table('questions').select('*').execute()
-                q_map = {str(qd.get('id')): qd for qd in (q_res.data or [])}
+        replies_raw = []
+        if supabase_initialized and supabase_client:
+            try:
+                def _exec():
+                    res = supabase_client.table('replies').select('*').order('created_at', desc=True).execute()
+                    return res.data or []
+                replies_raw = safe_supabase_query(_exec)
+            except Exception as e:
+                logger.warning(f"Supabase get_all_replies warning: {e}")
 
-                replies = []
-                for d in (res.data or []):
-                    u_id = str(d.get('user_id'))
-                    replier = users_map.get(u_id)
-                    if replier:
-                        d['replier'] = {'username': replier.username, 'id': replier.id}
-                    
-                    q_id = str(d.get('question_id'))
-                    if q_id in q_map:
-                        d['question'] = q_map[q_id]
-                    replies.append(SupabaseDoc(d))
-                return replies
-            return safe_supabase_query(_exec)
-        except Exception as e:
-            logger.error(f"Error fetching all replies: {e}")
-            return []
+        if not replies_raw and firebase_initialized and db_firestore:
+            try:
+                replies_raw = fetch_firestore_collection('replies')
+            except Exception as e:
+                logger.warning(f"Firebase get_all_replies warning: {e}")
+
+        users_map = {str(u.id): u for u in get_all_users()}
+        questions_raw = get_all_questions()
+        q_map = {str(getattr(qd, 'id', '')): qd._data if hasattr(qd, '_data') else qd for qd in questions_raw}
+
+        replies = []
+        for d in replies_raw:
+            u_id = str(d.get('user_id'))
+            replier = users_map.get(u_id)
+            if replier:
+                d['replier'] = {'username': replier.username, 'id': replier.id}
+            
+            q_id = str(d.get('question_id'))
+            if q_id in q_map:
+                d['question'] = q_map[q_id]
+            replies.append(SupabaseDoc(d))
+        return replies
     return get_cached('all_replies', _fetch, ttl=10)
 
 def save_reply(r_dict):
