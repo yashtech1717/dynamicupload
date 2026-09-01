@@ -144,7 +144,7 @@ def fetch_firestore_collection(coll_name):
     if not firebase_initialized or not db_firestore:
         return []
     try:
-        docs = db_firestore.collection(coll_name).stream()
+        docs = db_firestore.collection(coll_name).get()
         results = []
         for doc in docs:
             d = doc.to_dict() or {}
@@ -659,29 +659,31 @@ def get_user_by_username(username):
     return None
 
 def get_all_users():
-    users = []
-    if firebase_initialized and db_firestore:
-        try:
-            fs_users = fetch_firestore_collection('users')
-            if fs_users:
-                users = [SupabaseUser(d) for d in fs_users]
-        except Exception as e:
-            logger.warning(f"Firebase get_all_users warning: {e}")
+    def _fetch():
+        users = []
+        if firebase_initialized and db_firestore:
+            try:
+                fs_users = fetch_firestore_collection('users')
+                if fs_users:
+                    users = [SupabaseUser(d) for d in fs_users]
+            except Exception as e:
+                logger.warning(f"Firebase get_all_users warning: {e}")
 
-    if not users and supabase_initialized and supabase_client:
-        try:
-            def _exec():
-                res = supabase_client.table('users').select('*').order('id').execute()
-                return [SupabaseUser(d) for d in (res.data or [])]
-            users = safe_supabase_query(_exec)
-        except Exception as e:
-            logger.warning(f"Supabase get_all_users warning: {e}")
+        if not users and supabase_initialized and supabase_client:
+            try:
+                def _exec():
+                    res = supabase_client.table('users').select('*').order('id').execute()
+                    return [SupabaseUser(d) for d in (res.data or [])]
+                users = safe_supabase_query(_exec)
+            except Exception as e:
+                logger.warning(f"Supabase get_all_users warning: {e}")
 
-    for u in users:
-        _USER_CACHE[str(u.id)] = u
-        _USER_CACHE[u.username.lower()] = u
-        
-    return users or list({v for k, v in _USER_CACHE.items() if isinstance(v, SupabaseUser)})
+        for u in users:
+            _USER_CACHE[str(u.id)] = u
+            _USER_CACHE[u.username.lower()] = u
+            
+        return users or list({v for k, v in _USER_CACHE.items() if isinstance(v, SupabaseUser)})
+    return get_cached('all_users', _fetch, ttl=10)
 
 def save_user(user_dict):
     if not user_dict:
@@ -916,11 +918,14 @@ def update_question_order_list(ordered_ids):
         save_local_question_order(clean_ids)
         
         if firebase_initialized and db_firestore:
-            for order_idx, q_id in enumerate(clean_ids, start=1):
-                try:
-                    db_firestore.collection('questions').document(str(q_id)).update({'display_order': order_idx})
-                except Exception as ex_fs:
-                    logger.warning(f"Note updating question order in Firebase: {ex_fs}")
+            try:
+                batch = db_firestore.batch()
+                for order_idx, q_id in enumerate(clean_ids, start=1):
+                    ref = db_firestore.collection('questions').document(str(q_id))
+                    batch.set(ref, {'display_order': order_idx}, merge=True)
+                batch.commit()
+            except Exception as ex_fs:
+                logger.warning(f"Note updating question order batch in Firebase: {ex_fs}")
 
         if supabase_initialized and supabase_client:
             for order_idx, q_id in enumerate(clean_ids, start=1):
@@ -970,8 +975,9 @@ def insert_question_at_position(q_data, target_pos='last'):
     remaining = [q for q in remaining if str(getattr(q, 'id', '')) != str(saved_id)]
     remaining.insert(idx, saved_q)
     
-    ordered_ids = [str(getattr(q, 'id', '')) for q in remaining if getattr(q, 'id', None) is not None]
-    update_question_order_list(ordered_ids)
+    if pos_str != 'last':
+        ordered_ids = [str(getattr(q, 'id', '')) for q in remaining if getattr(q, 'id', None) is not None]
+        update_question_order_list(ordered_ids)
     
     invalidate_cache('all_questions')
     return saved_q
@@ -1039,7 +1045,9 @@ def save_question(q_dict):
 
         # Save to Firebase Firestore if active
         if firebase_initialized and db_firestore:
-            save_firestore_doc('questions', clean_dict)
+            saved_fs = save_firestore_doc('questions', clean_dict)
+            if not saved_fs:
+                raise RuntimeError("Firebase Firestore failed to save question document.")
 
         # Save to Supabase if active
         res = None
@@ -1176,7 +1184,9 @@ def save_reply(r_dict):
 
         # Save to Firebase Firestore if active
         if firebase_initialized and db_firestore:
-            save_firestore_doc('replies', clean_dict)
+            saved_fs = save_firestore_doc('replies', clean_dict)
+            if not saved_fs:
+                raise RuntimeError("Firebase Firestore failed to save reply document.")
 
         # Save to Supabase if active
         res = None
@@ -2255,9 +2265,12 @@ def ask_question():
         
         try:
             saved_doc = insert_question_at_position(q_data, target_pos=question_position) or save_question(q_data)
+            if not saved_doc:
+                raise RuntimeError("Failed to write question document to Firebase Firestore.")
         except Exception as fe:
-            logger.warning(f"Note on question save: {fe}")
-            saved_doc = SupabaseDoc(q_data)
+            logger.error(f"❌ Firebase Firestore question save error: {fe}")
+            flash(f"Error saving question to cloud: {str(fe)}", 'danger')
+            return redirect(url_for('ask_question'))
         
         invalidate_cache('all_questions')
         saved_id = getattr(saved_doc, 'id', None) or q_data.get('id')
@@ -2334,7 +2347,7 @@ def reply_question(question_id):
             save_question({'id': int(question_id), 'is_answered': True})
         except Exception as fe:
             logger.warning(f"Note on reply save: {fe}")
-            flash(f"Supabase PostgreSQL reply save failed: {str(fe)}", 'danger')
+            flash(f"Error saving reply to Firebase: {str(fe)}", 'danger')
             return redirect(url_for('reply_question', question_id=question_id))
         
         flash('Reply sent successfully! Your response has been sent to the Admin Dashboard.', 'success')
