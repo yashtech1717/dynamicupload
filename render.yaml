@@ -10,9 +10,5 @@ services:
         value: 3.11.8
       - key: SECRET_KEY
         generateValue: true
-      - key: SUPABASE_URL
+      - key: FIREBASE_SERVICE_ACCOUNT
         sync: false
-      - key: SUPABASE_KEY
-        sync: false
-      - key: SUPABASE_BUCKET
-        value: media
