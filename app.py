@@ -931,6 +931,9 @@ def save_question(q_dict):
                 continue
             clean_dict[k] = _sanitize_for_json(v)
 
+        if 'id' not in clean_dict or not clean_dict['id']:
+            clean_dict['id'] = get_next_id('questions')
+
         if 'created_at' not in clean_dict or not clean_dict['created_at']:
             clean_dict['created_at'] = datetime.utcnow().isoformat()
         clean_dict['updated_at'] = datetime.utcnow().isoformat()
@@ -1065,6 +1068,9 @@ def save_reply(r_dict):
         return None
     try:
         clean_dict = {k: _sanitize_for_json(v) for k, v in r_dict.items() if k not in ('replier', 'question')}
+        if 'id' not in clean_dict or not clean_dict['id']:
+            clean_dict['id'] = get_next_id('replies')
+
         if 'created_at' not in clean_dict or not clean_dict['created_at']:
             clean_dict['created_at'] = datetime.utcnow().isoformat()
         clean_dict['updated_at'] = datetime.utcnow().isoformat()
@@ -2062,8 +2068,8 @@ def ask_question():
             uploaded_media = process_media_uploads(request.files, media_specs)
             q_data.update(uploaded_media)
         except Exception as e:
-            flash(f"Supabase Storage upload failed: {str(e)}", 'danger')
-            return redirect(url_for('ask_question'))
+            logger.warning(f"Note during question media upload: {e}")
+            flash(f"Storage upload note: {str(e)}", 'info')
         
         image_url = request.form.get('image_url', '').strip()
         if image_url and not q_data.get('image_data'):
