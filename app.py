@@ -1772,15 +1772,11 @@ def upload_file_to_supabase(file, media_type='image'):
             media_token = str(uuid.uuid4())
             blob.metadata = {'firebaseStorageDownloadTokens': media_token}
             blob.upload_from_string(file_bytes, content_type=content_type or 'application/octet-stream')
-            try:
-                blob.make_public()
-                public_url = blob.public_url
-            except Exception:
-                from urllib.parse import quote
-                encoded_name = quote(blob.name, safe='')
-                public_url = f"https://firebasestorage.googleapis.com/v0/b/{firebase_bucket.name}/o/{encoded_name}?alt=media&token={media_token}"
+            from urllib.parse import quote
+            encoded_name = quote(blob.name, safe='')
+            public_url = f"https://firebasestorage.googleapis.com/v0/b/{firebase_bucket.name}/o/{encoded_name}?alt=media&token={media_token}"
             if public_url:
-                logger.info(f"🔥 Firebase Storage upload verified: {public_url}")
+                logger.info(f"🔥 Firebase Storage upload verified instantly: {public_url}")
                 return public_url, filename
         except Exception as e:
             logger.warning(f"⚠️ Firebase Storage upload notice: {e}")
