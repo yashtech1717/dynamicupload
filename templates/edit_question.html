@@ -56,6 +56,10 @@
                     <input type="file" name="audio" accept="audio/*" style="font-size: 12px; width: 100%;">
                 </div>
             </div>
+            <div style="margin-top: 10px;">
+                <label style="font-weight: 600; font-size: 13px; color: var(--text-secondary); display: block; margin-bottom: 4px;">🎥 Or Paste Video URL (Cloudinary, YouTube, Direct MP4)</label>
+                <input type="url" name="video_url" placeholder="https://res.cloudinary.com/.../video.mp4" value="{{ question.video_data if question.video_data and question.video_data.startswith('http') else (question.video if question.video and question.video.startswith('http') else '') }}" style="width: 100%; padding: 10px 14px; border: none; border-radius: 12px; background: var(--bg-primary); box-shadow: var(--inset-shadow); font-size: 13px; color: var(--text-primary); outline: none;">
+            </div>
         </div>
         
         {% if question.image_data or question.video_data or question.audio_data or question.image or question.video or question.audio %}

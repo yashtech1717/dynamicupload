@@ -2257,17 +2257,19 @@ def edit_question(question_id):
             if 'audio_data' in uploaded_media:
                 q_dict['audio'] = uploaded_media['audio_data']
         except Exception as e:
-            flash(f"Supabase Storage upload failed: {str(e)}", 'danger')
-            return redirect(url_for('edit_question', question_id=question_id))
+            logger.warning(f"Note during media uploads: {e}")
+            flash(f"Storage upload note: {str(e)}", 'info')
 
         image_url = request.form.get('image_url', '').strip()
         if image_url:
             q_dict['image_data'] = get_media_url(image_url, 'image')
+            q_dict['image'] = q_dict['image_data']
             q_dict['image_filename'] = request.form.get('image_filename', 'external_image')
 
         video_url = request.form.get('video_url', '').strip()
         if video_url:
             q_dict['video_data'] = get_media_url(video_url, 'video')
+            q_dict['video'] = q_dict['video_data']
             q_dict['video_filename'] = request.form.get('video_filename', 'external_video')
 
         audio_url = request.form.get('audio_url', '').strip()
