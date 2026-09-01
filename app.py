@@ -2115,19 +2115,19 @@ def ask_question():
             logger.warning(f"Note on question save: {fe}")
             saved_doc = SupabaseDoc(q_data)
         
+        invalidate_cache('all_questions')
+        saved_id = getattr(saved_doc, 'id', None) or q_data.get('id')
+        
         all_q = get_all_questions()
-        if all_q:
-            saved_id = getattr(saved_doc, 'id', None)
-            new_idx = 0
+        if all_q and saved_id:
             for idx, q in enumerate(all_q):
                 if str(getattr(q, 'id', '')) == str(saved_id):
-                    new_idx = idx
+                    session['current_question_index'] = idx
+                    session.modified = True
                     break
-            session['current_question_index'] = new_idx
-            session.modified = True
         
         flash('Question asked successfully!', 'success')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('dashboard', qid=saved_id))
     
     questions = get_all_questions()
     total_questions = len(questions)
