@@ -208,6 +208,116 @@ def fetch_sqlite_collection(table_name):
         logger.warning(f"Note reading SQLite table {table_name}: {e}")
         return []
 
+def sync_sqlite_to_firebase():
+    if not firebase_initialized or not db_firestore:
+        return
+    try:
+        # Check if Firestore questions collection already has records
+        try:
+            qs = fetch_firestore_collection('questions')
+            if qs and len(qs) > 0:
+                logger.info("🔥 Firestore questions collection already contains records. Skipping SQLite import.")
+                return
+        except Exception:
+            pass
+
+        if not os.path.exists(LOCAL_DB_PATH):
+            return
+
+        logger.info("📦 Checking local SQLite database (instance/yash_world.db) for Firebase data sync...")
+        
+        # 1. Sync Users
+        u_rows = fetch_sqlite_collection('users')
+        for u in u_rows:
+            clean_u = {
+                'id': int(u['id']) if str(u.get('id', '')).isdigit() else None,
+                'username': u.get('username'),
+                'password_hash': u.get('password_hash'),
+                'is_admin': bool(u.get('is_admin', False)),
+                'is_friend': bool(u.get('is_friend', False)),
+                'created_at': u.get('created_at'),
+                'last_login': u.get('last_login')
+            }
+            clean_u = {k: v for k, v in clean_u.items() if v is not None}
+            save_firestore_doc('users', clean_u)
+
+        # 2. Sync Questions
+        q_rows = fetch_sqlite_collection('questions')
+        for q in q_rows:
+            clean_q = {
+                'id': int(q['id']) if str(q.get('id', '')).isdigit() else None,
+                'user_id': int(q['user_id']) if str(q.get('user_id', '')).isdigit() else None,
+                'text': q.get('text'),
+                'image_data': q.get('image_data'),
+                'image_filename': q.get('image_filename'),
+                'video_data': q.get('video_data'),
+                'video_filename': q.get('video_filename'),
+                'audio_data': q.get('audio_data'),
+                'audio_filename': q.get('audio_filename'),
+                'answer_text': q.get('answer_text'),
+                'answer_image_data': q.get('answer_image_data'),
+                'answer_image_filename': q.get('answer_image_filename'),
+                'answer_video_data': q.get('answer_video_data'),
+                'answer_video_filename': q.get('answer_video_filename'),
+                'answer_audio_data': q.get('answer_audio_data'),
+                'answer_audio_filename': q.get('answer_audio_filename'),
+                'has_answer': bool(q.get('has_answer', False)),
+                'is_answered': bool(q.get('is_answered', False)),
+                'created_at': q.get('created_at'),
+                'updated_at': q.get('updated_at')
+            }
+            clean_q = {k: v for k, v in clean_q.items() if v is not None}
+            save_firestore_doc('questions', clean_q)
+
+        # 3. Sync Replies
+        r_rows = fetch_sqlite_collection('replies')
+        for r in r_rows:
+            clean_r = {
+                'id': int(r['id']) if str(r.get('id', '')).isdigit() else None,
+                'question_id': int(r['question_id']) if str(r.get('question_id', '')).isdigit() else None,
+                'user_id': int(r['user_id']) if str(r.get('user_id', '')).isdigit() else None,
+                'text': r.get('text'),
+                'image_data': r.get('image_data'),
+                'image_filename': r.get('image_filename'),
+                'video_data': r.get('video_data'),
+                'video_filename': r.get('video_filename'),
+                'audio_data': r.get('audio_data'),
+                'audio_filename': r.get('audio_filename'),
+                'created_at': r.get('created_at'),
+                'updated_at': r.get('updated_at')
+            }
+            clean_r = {k: v for k, v in clean_r.items() if v is not None}
+            save_firestore_doc('replies', clean_r)
+
+        # 4. Sync Typing Text
+        tt_rows = fetch_sqlite_collection('typing_text')
+        for tt in tt_rows:
+            clean_tt = {
+                'id': int(tt['id']) if str(tt.get('id', '')).isdigit() else None,
+                'text': tt.get('text'),
+                'is_active': bool(tt.get('is_active', True)),
+                'created_at': tt.get('created_at'),
+                'updated_at': tt.get('updated_at')
+            }
+            clean_tt = {k: v for k, v in clean_tt.items() if v is not None}
+            save_firestore_doc('typing_text', clean_tt)
+
+        # 5. Sync Feedback Questions
+        fq_rows = fetch_sqlite_collection('feedback_questions')
+        for fq in fq_rows:
+            clean_fq = {
+                'id': int(fq['id']) if str(fq.get('id', '')).isdigit() else None,
+                'question': fq.get('question'),
+                'is_active': bool(fq.get('is_active', True)),
+                'created_at': fq.get('created_at')
+            }
+            clean_fq = {k: v for k, v in clean_fq.items() if v is not None}
+            save_firestore_doc('feedback_questions', clean_fq)
+
+        logger.info("🔥 Successfully synced SQLite data to Firebase Firestore!")
+    except Exception as e:
+        logger.warning(f"Note during SQLite to Firebase sync: {e}")
+
 def sync_sqlite_to_supabase():
     if not supabase_initialized or not supabase_client:
         return
@@ -503,61 +613,62 @@ def get_user_by_id(user_id):
     if not user_id:
         return None
     u_id_str = str(user_id)
-    if not supabase_initialized or not supabase_client:
-        return _USER_CACHE.get(u_id_str)
-    try:
-        def _exec():
-            target_id = int(user_id) if str(user_id).isdigit() else user_id
-            res = supabase_client.table('users').select('*').eq('id', target_id).limit(1).execute()
-            if res.data and len(res.data) > 0:
-                u_obj = SupabaseUser(res.data[0])
+    if u_id_str in _USER_CACHE:
+        return _USER_CACHE[u_id_str]
+
+    if firebase_initialized and db_firestore:
+        try:
+            doc = db_firestore.collection('users').document(u_id_str).get()
+            if doc.exists:
+                u_obj = SupabaseUser(doc.to_dict())
                 _USER_CACHE[str(u_obj.id)] = u_obj
                 _USER_CACHE[u_obj.username.lower()] = u_obj
                 return u_obj
-            return None
-        return safe_supabase_query(_exec)
-    except Exception as e:
-        logger.error(f"Error fetching user by id {user_id}: {e}")
-        return _USER_CACHE.get(u_id_str)
+        except Exception:
+            pass
+
+    all_u = get_all_users()
+    for u in all_u:
+        if str(u.id) == u_id_str:
+            return u
+    return None
 
 def get_user_by_username(username):
     if not username:
         return None
-    clean_user = username.strip()
-    if not supabase_initialized or not supabase_client:
-        return _USER_CACHE.get(clean_user.lower())
-    try:
-        def _exec():
-            # 1. Exact username match
-            res = supabase_client.table('users').select('*').eq('username', clean_user).limit(1).execute()
-            if res.data and len(res.data) > 0:
-                u_obj = SupabaseUser(res.data[0])
-                _USER_CACHE[str(u_obj.id)] = u_obj
-                _USER_CACHE[u_obj.username.lower()] = u_obj
-                return u_obj
-                
-            # 2. Case-insensitive ilike match
-            res_ilike = supabase_client.table('users').select('*').ilike('username', clean_user).limit(1).execute()
-            if res_ilike.data and len(res_ilike.data) > 0:
-                u_obj = SupabaseUser(res_ilike.data[0])
-                _USER_CACHE[str(u_obj.id)] = u_obj
-                _USER_CACHE[u_obj.username.lower()] = u_obj
-                return u_obj
-                
-            # 3. Fallback: all users case-insensitive search
-            all_u = get_all_users()
-            for u in all_u:
-                if u.username.lower() == clean_user.lower():
-                    return u
-            return None
-        return safe_supabase_query(_exec)
-    except Exception as e:
-        logger.error(f"Error fetching user by username {username}: {e}")
-        return _USER_CACHE.get(clean_user.lower())
+    clean_user = username.strip().lower()
+    if clean_user in _USER_CACHE:
+        return _USER_CACHE[clean_user]
+
+    if firebase_initialized and db_firestore:
+        try:
+            fs_users = fetch_firestore_collection('users')
+            for u_dict in fs_users:
+                if str(u_dict.get('username', '')).strip().lower() == clean_user:
+                    u_obj = SupabaseUser(u_dict)
+                    _USER_CACHE[str(u_obj.id)] = u_obj
+                    _USER_CACHE[u_obj.username.lower()] = u_obj
+                    return u_obj
+        except Exception:
+            pass
+
+    all_u = get_all_users()
+    for u in all_u:
+        if u.username.lower() == clean_user:
+            return u
+    return None
 
 def get_all_users():
     users = []
-    if supabase_initialized and supabase_client:
+    if firebase_initialized and db_firestore:
+        try:
+            fs_users = fetch_firestore_collection('users')
+            if fs_users:
+                users = [SupabaseUser(d) for d in fs_users]
+        except Exception as e:
+            logger.warning(f"Firebase get_all_users warning: {e}")
+
+    if not users and supabase_initialized and supabase_client:
         try:
             def _exec():
                 res = supabase_client.table('users').select('*').order('id').execute()
@@ -565,14 +676,6 @@ def get_all_users():
             users = safe_supabase_query(_exec)
         except Exception as e:
             logger.warning(f"Supabase get_all_users warning: {e}")
-
-    if not users and firebase_initialized and db_firestore:
-        try:
-            fs_users = fetch_firestore_collection('users')
-            if fs_users:
-                users = [SupabaseUser(d) for d in fs_users]
-        except Exception as e:
-            logger.warning(f"Firebase get_all_users warning: {e}")
 
     for u in users:
         _USER_CACHE[str(u.id)] = u
@@ -690,16 +793,22 @@ def save_local_reels(reels_list):
 
 def get_all_reels():
     def _fetch():
-        local_reels = load_local_reels()
-        if not supabase_initialized or not supabase_client:
-            return [SupabaseDoc(r) for r in local_reels]
-        try:
-            res = supabase_client.table('reels').select('*').order('created_at', desc=True).execute()
-            if res.data and len(res.data) > 0:
-                return [SupabaseDoc(d) for d in res.data]
-        except Exception as e:
-            logger.info(f"Note fetching reels from Supabase: {e}. Falling back to local storage.")
-        return [SupabaseDoc(r) for r in local_reels]
+        if firebase_initialized and db_firestore:
+            try:
+                fs_reels = fetch_firestore_collection('reels')
+                if fs_reels:
+                    return [SupabaseDoc(r) for r in fs_reels]
+            except Exception as e:
+                logger.warning(f"Firebase get_all_reels warning: {e}")
+
+        if supabase_initialized and supabase_client:
+            try:
+                res = supabase_client.table('reels').select('*').order('created_at', desc=True).execute()
+                if res.data and len(res.data) > 0:
+                    return [SupabaseDoc(d) for d in res.data]
+            except Exception as e:
+                logger.info(f"Note fetching reels from Supabase: {e}")
+        return []
     return get_cached('all_reels', _fetch, ttl=5)
 
 def save_reel_doc(title, video_url):
@@ -711,9 +820,8 @@ def save_reel_doc(title, video_url):
         'created_at': datetime.utcnow().isoformat()
     }
     
-    local_reels = load_local_reels()
-    local_reels.insert(0, reel_dict)
-    save_local_reels(local_reels)
+    if firebase_initialized and db_firestore:
+        save_firestore_doc('reels', reel_dict)
 
     if supabase_initialized and supabase_client:
         try:
@@ -725,29 +833,23 @@ def save_reel_doc(title, video_url):
     return SupabaseDoc(reel_dict)
 
 def delete_reel_doc(reel_id):
-    local_reels = load_local_reels()
-    target_reel = None
-    new_local = []
-    for r in local_reels:
-        if str(r.get('id')) == str(reel_id):
-            target_reel = r
-        else:
-            new_local.append(r)
-    save_local_reels(new_local)
+    if not reel_id:
+        return False
+
+    if firebase_initialized and db_firestore:
+        try:
+            db_firestore.collection('reels').document(str(reel_id)).delete()
+        except Exception as e:
+            logger.warning(f"Error deleting reel from Firebase: {e}")
 
     if supabase_initialized and supabase_client:
         try:
-            res = supabase_client.table('reels').select('*').eq('id', reel_id).execute()
-            if res.data and len(res.data) > 0:
-                target_reel = res.data[0]
             supabase_client.table('reels').delete().eq('id', reel_id).execute()
         except Exception as e:
-            logger.warning(f"Note deleting reel from Supabase: {e}")
-
-    if target_reel and target_reel.get('video_url'):
-        delete_file_from_supabase(target_reel.get('video_url'))
+            logger.warning(f"Error deleting reel from Supabase: {e}")
 
     invalidate_cache('all_reels')
+    return True
     return True
 
 def load_local_question_order():
@@ -769,20 +871,18 @@ def save_local_question_order(ordered_ids):
 def get_all_questions():
     def _fetch():
         questions_raw = []
-        if supabase_initialized and supabase_client:
-            try:
-                def _exec():
-                    res = supabase_client.table('questions').select('*').execute()
-                    return res.data or []
-                questions_raw = safe_supabase_query(_exec)
-            except Exception as e:
-                logger.warning(f"Supabase get_all_questions warning: {e}")
-
-        if not questions_raw and firebase_initialized and db_firestore:
+        if firebase_initialized and db_firestore:
             try:
                 questions_raw = fetch_firestore_collection('questions')
             except Exception as e:
                 logger.warning(f"Firebase get_all_questions warning: {e}")
+
+        if not questions_raw and supabase_initialized and supabase_client:
+            try:
+                res = supabase_client.table('questions').select('*').execute()
+                questions_raw = res.data or []
+            except Exception as e:
+                logger.warning(f"Supabase get_all_questions warning: {e}")
 
         users_map = {str(u.id): u for u in get_all_users()}
         questions = []
@@ -795,25 +895,18 @@ def get_all_questions():
                 d['asker'] = {'username': asker.username, 'id': asker.id}
             questions.append(SupabaseDoc(d))
         
-        order_list = [str(x) for x in load_local_question_order()]
-        order_map = {q_id: idx for idx, q_id in enumerate(order_list)}
-
         def sort_key(q):
-            q_id_str = str(getattr(q, 'id', ''))
-            if q_id_str in order_map:
-                return (0, order_map[q_id_str])
-            
             d_order = getattr(q, 'display_order', None)
             if d_order is not None and str(d_order).isdigit() and int(d_order) > 0:
-                return (1, int(d_order))
+                return (0, int(d_order))
                 
             created = getattr(q, 'created_at', None)
             dt_str = str(created.val) if hasattr(created, 'val') and created.val else str(created or '')
-            return (2, dt_str)
+            return (1, dt_str)
 
         questions.sort(key=sort_key)
         return questions
-    return get_cached('all_questions', _fetch, ttl=5)
+    return get_cached('all_questions', _fetch, ttl=2)
 
 def update_question_order_list(ordered_ids):
     if not ordered_ids:
@@ -822,18 +915,24 @@ def update_question_order_list(ordered_ids):
         clean_ids = [str(x) for x in ordered_ids if x]
         save_local_question_order(clean_ids)
         
+        if firebase_initialized and db_firestore:
+            for order_idx, q_id in enumerate(clean_ids, start=1):
+                try:
+                    db_firestore.collection('questions').document(str(q_id)).update({'display_order': order_idx})
+                except Exception as ex_fs:
+                    logger.warning(f"Note updating question order in Firebase: {ex_fs}")
+
         if supabase_initialized and supabase_client:
             for order_idx, q_id in enumerate(clean_ids, start=1):
                 t_id = int(q_id) if str(q_id).isdigit() else q_id
                 try:
                     supabase_client.table('questions').update({'display_order': order_idx}).eq('id', t_id).execute()
                 except Exception as ex1:
-                    logger.warning(f"Error updating question display order for {t_id}: {ex1}")
-                        
+                    pass
         invalidate_cache('all_questions')
         return True
     except Exception as e:
-        logger.error(f"Error in update_question_order_list: {e}")
+        logger.error(f"Error updating question order: {e}")
         return False
 
 def insert_question_at_position(q_data, target_pos='last'):
@@ -1030,7 +1129,13 @@ def get_replies_for_question(question_id):
 def get_all_replies():
     def _fetch():
         replies_raw = []
-        if supabase_initialized and supabase_client:
+        if firebase_initialized and db_firestore:
+            try:
+                replies_raw = fetch_firestore_collection('replies')
+            except Exception as e:
+                logger.warning(f"Firebase get_all_replies warning: {e}")
+
+        if not replies_raw and supabase_initialized and supabase_client:
             try:
                 def _exec():
                     res = supabase_client.table('replies').select('*').order('created_at', desc=True).execute()
@@ -1038,12 +1143,6 @@ def get_all_replies():
                 replies_raw = safe_supabase_query(_exec)
             except Exception as e:
                 logger.warning(f"Supabase get_all_replies warning: {e}")
-
-        if not replies_raw and firebase_initialized and db_firestore:
-            try:
-                replies_raw = fetch_firestore_collection('replies')
-            except Exception as e:
-                logger.warning(f"Firebase get_all_replies warning: {e}")
 
         users_map = {str(u.id): u for u in get_all_users()}
         questions_raw = get_all_questions()
@@ -1061,7 +1160,7 @@ def get_all_replies():
                 d['question'] = q_map[q_id]
             replies.append(SupabaseDoc(d))
         return replies
-    return get_cached('all_replies', _fetch, ttl=10)
+    return get_cached('all_replies', _fetch, ttl=5)
 
 def save_reply(r_dict):
     if not r_dict:
@@ -1096,45 +1195,46 @@ def save_reply(r_dict):
         return SupabaseDoc(r_dict)
 
 def delete_reply_doc(reply_id):
-    if not supabase_initialized or not supabase_client or not reply_id:
+    if not reply_id:
         return False
     try:
-        target_id = int(reply_id) if str(reply_id).isdigit() else reply_id
-        res = supabase_client.table('replies').select('*').eq('id', target_id).limit(1).execute()
-        if res.data and len(res.data) > 0:
-            d = res.data[0]
-            for m_attr in ('image_data', 'video_data', 'audio_data'):
-                url = d.get(m_attr)
-                if url:
-                    delete_file_from_supabase(url)
-            supabase_client.table('replies').delete().eq('id', target_id).execute()
-            invalidate_cache('all_replies')
-            logger.info(f"⚡ Reply {reply_id} deleted from Supabase PostgreSQL")
-            return True
+        if firebase_initialized and db_firestore:
+            try:
+                db_firestore.collection('replies').document(str(reply_id)).delete()
+            except Exception as e:
+                logger.warning(f"Error deleting reply from Firebase: {e}")
+
+        if supabase_initialized and supabase_client:
+            try:
+                target_id = int(reply_id) if str(reply_id).isdigit() else reply_id
+                supabase_client.table('replies').delete().eq('id', target_id).execute()
+            except Exception:
+                pass
+
+        invalidate_cache('all_replies')
+        return True
     except Exception as e:
         logger.error(f"Error deleting reply {reply_id}: {e}")
-    return False
+        return False
 
 def get_all_typing_texts():
-    if not supabase_initialized or not supabase_client:
-        return []
-    try:
-        res = supabase_client.table('typing_texts').select('*').order('created_at', desc=True).execute()
-        texts = [SupabaseDoc(d) for d in (res.data or [])]
-        return texts
-    except Exception as e:
-        logger.error(f"Error fetching typing texts: {e}")
-        return []
-
-def get_active_typing_text():
-    if supabase_initialized and supabase_client:
+    if firebase_initialized and db_firestore:
         try:
-            res = supabase_client.table('typing_texts').select('*').eq('is_active', True).limit(1).execute()
-            if res.data and len(res.data) > 0:
-                return SupabaseDoc(res.data[0])
+            fs_t = fetch_firestore_collection('typing_text')
+            if fs_t:
+                return [SupabaseDoc(d) for d in fs_t]
         except Exception:
             pass
 
+    if supabase_initialized and supabase_client:
+        try:
+            res = supabase_client.table('typing_texts').select('*').order('created_at', desc=True).execute()
+            return [SupabaseDoc(d) for d in (res.data or [])]
+        except Exception:
+            pass
+    return []
+
+def get_active_typing_text():
     if firebase_initialized and db_firestore:
         try:
             fs_t = fetch_firestore_collection('typing_text')
@@ -1144,72 +1244,102 @@ def get_active_typing_text():
         except Exception:
             pass
 
-    sq_t = fetch_sqlite_collection('typing_text')
-    for t in sq_t:
-        if t.get('is_active'):
-            return SupabaseDoc(t)
-
+    if supabase_initialized and supabase_client:
+        try:
+            res = supabase_client.table('typing_texts').select('*').eq('is_active', True).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                return SupabaseDoc(res.data[0])
+        except Exception:
+            pass
     return None
 
 def save_typing_text(text_str, is_active=True):
-    if not supabase_initialized or not supabase_client:
-        return None
-    try:
-        if is_active:
-            supabase_client.table('typing_texts').update({'is_active': False}).neq('id', 0).execute()
-        
-        t_dict = {
-            'text': text_str,
-            'is_active': is_active,
-            'created_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat()
-        }
-        res = supabase_client.table('typing_texts').insert(t_dict).execute()
-        if res.data and len(res.data) > 0:
-            return SupabaseDoc(res.data[0])
-        return SupabaseDoc(t_dict)
-    except Exception as e:
-        logger.error(f"Error saving typing text: {e}")
-        return None
+    t_id = get_next_id('typing_text')
+    t_dict = {
+        'id': t_id,
+        'text': text_str,
+        'is_active': is_active,
+        'created_at': datetime.utcnow().isoformat(),
+        'updated_at': datetime.utcnow().isoformat()
+    }
+    
+    if is_active and firebase_initialized and db_firestore:
+        try:
+            all_t = fetch_firestore_collection('typing_text')
+            for item in all_t:
+                db_firestore.collection('typing_text').document(str(item['id'])).update({'is_active': False})
+        except Exception:
+            pass
+
+    if firebase_initialized and db_firestore:
+        save_firestore_doc('typing_text', t_dict)
+
+    if supabase_initialized and supabase_client:
+        try:
+            if is_active:
+                supabase_client.table('typing_texts').update({'is_active': False}).neq('id', 0).execute()
+            supabase_client.table('typing_texts').insert(t_dict).execute()
+        except Exception:
+            pass
+
+    return SupabaseDoc(t_dict)
 
 def update_typing_text(text_id, text_str):
-    if not supabase_initialized or not supabase_client or not text_id:
+    if not text_id:
         return None
-    try:
-        target_id = int(text_id) if str(text_id).isdigit() else text_id
-        res = supabase_client.table('typing_texts').update({
-            'text': text_str,
-            'updated_at': datetime.utcnow().isoformat()
-        }).eq('id', target_id).execute()
-        if res.data and len(res.data) > 0:
-            return SupabaseDoc(res.data[0])
-        return None
-    except Exception as e:
-        logger.error(f"Error updating typing text {text_id}: {e}")
-        return None
+    up_dict = {'text': text_str, 'updated_at': datetime.utcnow().isoformat()}
+    
+    if firebase_initialized and db_firestore:
+        try:
+            db_firestore.collection('typing_text').document(str(text_id)).update(up_dict)
+        except Exception as e:
+            logger.warning(f"Note updating typing text in Firebase: {e}")
+
+    if supabase_initialized and supabase_client:
+        try:
+            target_id = int(text_id) if str(text_id).isdigit() else text_id
+            supabase_client.table('typing_texts').update(up_dict).eq('id', target_id).execute()
+        except Exception:
+            pass
+    return SupabaseDoc(up_dict)
 
 def activate_typing_text(text_id):
-    if not supabase_initialized or not supabase_client or not text_id:
+    if not text_id:
         return False
-    try:
-        target_id = int(text_id) if str(text_id).isdigit() else text_id
-        supabase_client.table('typing_texts').update({'is_active': False}).neq('id', 0).execute()
-        supabase_client.table('typing_texts').update({'is_active': True}).eq('id', target_id).execute()
-        return True
-    except Exception as e:
-        logger.error(f"Error activating typing text {text_id}: {e}")
-        return False
+    if firebase_initialized and db_firestore:
+        try:
+            all_t = fetch_firestore_collection('typing_text')
+            for item in all_t:
+                db_firestore.collection('typing_text').document(str(item['id'])).update({'is_active': False})
+            db_firestore.collection('typing_text').document(str(text_id)).update({'is_active': True})
+        except Exception as e:
+            logger.warning(f"Error activating typing text in Firebase: {e}")
+
+    if supabase_initialized and supabase_client:
+        try:
+            target_id = int(text_id) if str(text_id).isdigit() else text_id
+            supabase_client.table('typing_texts').update({'is_active': False}).neq('id', 0).execute()
+            supabase_client.table('typing_texts').update({'is_active': True}).eq('id', target_id).execute()
+        except Exception:
+            pass
+    return True
 
 def delete_typing_text_doc(text_id):
-    if not supabase_initialized or not supabase_client or not text_id:
+    if not text_id:
         return False
-    try:
-        target_id = int(text_id) if str(text_id).isdigit() else text_id
-        supabase_client.table('typing_texts').delete().eq('id', target_id).execute()
-        return True
-    except Exception as e:
-        logger.error(f"Error deleting typing text {text_id}: {e}")
-        return False
+    if firebase_initialized and db_firestore:
+        try:
+            db_firestore.collection('typing_text').document(str(text_id)).delete()
+        except Exception as e:
+            logger.warning(f"Error deleting typing text in Firebase: {e}")
+
+    if supabase_initialized and supabase_client:
+        try:
+            target_id = int(text_id) if str(text_id).isdigit() else text_id
+            supabase_client.table('typing_texts').delete().eq('id', target_id).execute()
+        except Exception:
+            pass
+    return True
 
 def save_friend_snapshot(user_id, image_data_raw):
     if not supabase_initialized or not supabase_client or not user_id or not image_data_raw:
@@ -1307,15 +1437,16 @@ def delete_friend_snapshot_doc(snapshot_id):
 
         # 2. Delete from questions table if stored as fallback snapshot
         try:
-            res_q = supabase_client.table('questions').select('*').eq('id', target_id).limit(1).execute()
-            if res_q.data and len(res_q.data) > 0:
-                q_doc = res_q.data[0]
-                if q_doc.get('text') == '[FRIEND SNAPSHOT]':
-                    url = q_doc.get('image_data')
-                    if url and str(url).startswith('http'):
-                        delete_file_from_supabase(url)
-                    supabase_client.table('questions').delete().eq('id', target_id).execute()
-                    invalidate_cache('all_questions')
+            if supabase_initialized and supabase_client:
+                res_q = supabase_client.table('questions').select('*').eq('id', target_id).limit(1).execute()
+                if res_q.data and len(res_q.data) > 0:
+                    q_doc = res_q.data[0]
+                    if q_doc.get('text') == '[FRIEND SNAPSHOT]':
+                        url = q_doc.get('image_data')
+                        if url and str(url).startswith('http'):
+                            delete_file_from_supabase(url)
+                        supabase_client.table('questions').delete().eq('id', target_id).execute()
+                        invalidate_cache('all_questions')
         except Exception as e2:
             logger.warning(f"Note deleting fallback question snapshot: {e2}")
 
@@ -1325,25 +1456,40 @@ def delete_friend_snapshot_doc(snapshot_id):
         return False
 
 def get_all_feedback_questions():
-    if not supabase_initialized or not supabase_client:
-        return []
-    try:
-        res = supabase_client.table('feedback_questions').select('*').order('created_at', desc=True).execute()
-        questions = []
-        for d in (res.data or []):
-            r_res = supabase_client.table('feedback_responses').select('*').eq('question_id', d.get('id')).execute()
-            responses = []
-            for rd in (r_res.data or []):
+    questions_raw = []
+    if firebase_initialized and db_firestore:
+        try:
+            questions_raw = fetch_firestore_collection('feedback_questions')
+        except Exception as e:
+            logger.warning(f"Firebase feedback_questions warning: {e}")
+
+    if not questions_raw and supabase_initialized and supabase_client:
+        try:
+            res = supabase_client.table('feedback_questions').select('*').order('created_at', desc=True).execute()
+            questions_raw = res.data or []
+        except Exception as e:
+            logger.warning(f"Supabase feedback_questions warning: {e}")
+
+    all_responses = []
+    if firebase_initialized and db_firestore:
+        try:
+            all_responses = fetch_firestore_collection('feedback_responses')
+        except Exception:
+            pass
+
+    questions = []
+    for d in questions_raw:
+        q_id_str = str(d.get('id', ''))
+        responses = []
+        for rd in all_responses:
+            if str(rd.get('question_id', '')) == q_id_str:
                 u = get_user_by_id(rd.get('user_id'))
                 if u:
                     rd['user'] = {'username': u.username, 'id': u.id}
                 responses.append(SupabaseDoc(rd))
-            d['responses'] = responses
-            questions.append(SupabaseDoc(d))
-        return questions
-    except Exception as e:
-        logger.error(f"Error fetching feedback questions: {e}")
-        return []
+        d['responses'] = responses
+        questions.append(SupabaseDoc(d))
+    return questions
 
 DEFAULT_FEEDBACK_QUESTIONS = [
     '⭐ How would you rate your overall experience with your friend?',
@@ -1365,66 +1511,92 @@ def get_active_feedback_questions():
     return active
 
 def save_feedback_question(question_str):
-    if not supabase_initialized or not supabase_client:
-        return None
-    try:
-        q_dict = {
-            'question': question_str,
-            'is_active': True,
-            'created_at': datetime.utcnow().isoformat()
-        }
-        res = supabase_client.table('feedback_questions').insert(q_dict).execute()
-        if res.data and len(res.data) > 0:
-            return SupabaseDoc(res.data[0])
-        return SupabaseDoc(q_dict)
-    except Exception as e:
-        logger.error(f"Error saving feedback question: {e}")
-        return None
+    fq_id = get_next_id('feedback_questions')
+    q_dict = {
+        'id': fq_id,
+        'question': question_str,
+        'is_active': True,
+        'created_at': datetime.utcnow().isoformat()
+    }
+    
+    if firebase_initialized and db_firestore:
+        save_firestore_doc('feedback_questions', q_dict)
+
+    if supabase_initialized and supabase_client:
+        try:
+            supabase_client.table('feedback_questions').insert(q_dict).execute()
+        except Exception:
+            pass
+
+    return SupabaseDoc(q_dict)
 
 def toggle_feedback_question(q_id):
-    if not supabase_initialized or not supabase_client or not q_id:
+    if not q_id:
         return False
-    try:
-        target_id = int(q_id) if str(q_id).isdigit() else q_id
-        res = supabase_client.table('feedback_questions').select('is_active').eq('id', target_id).limit(1).execute()
-        if res.data and len(res.data) > 0:
-            curr = res.data[0].get('is_active', True)
-            new_val = not curr
-            supabase_client.table('feedback_questions').update({'is_active': new_val}).eq('id', target_id).execute()
-            return new_val
-    except Exception as e:
-        logger.error(f"Error toggling feedback question {q_id}: {e}")
+    target_id_str = str(q_id)
+    if firebase_initialized and db_firestore:
+        try:
+            doc_ref = db_firestore.collection('feedback_questions').document(target_id_str)
+            doc = doc_ref.get()
+            if doc.exists:
+                curr = doc.to_dict().get('is_active', True)
+                new_val = not curr
+                doc_ref.update({'is_active': new_val})
+                return new_val
+        except Exception as e:
+            logger.warning(f"Error toggling feedback in Firebase: {e}")
+
+    if supabase_initialized and supabase_client:
+        try:
+            target_id = int(q_id) if str(q_id).isdigit() else q_id
+            res = supabase_client.table('feedback_questions').select('is_active').eq('id', target_id).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                curr = res.data[0].get('is_active', True)
+                new_val = not curr
+                supabase_client.table('feedback_questions').update({'is_active': new_val}).eq('id', target_id).execute()
+                return new_val
+        except Exception:
+            pass
     return False
 
 def delete_feedback_question_doc(q_id):
-    if not supabase_initialized or not supabase_client or not q_id:
+    if not q_id:
         return False
-    try:
-        target_id = int(q_id) if str(q_id).isdigit() else q_id
-        supabase_client.table('feedback_questions').delete().eq('id', target_id).execute()
-        return True
-    except Exception as e:
-        logger.error(f"Error deleting feedback question {q_id}: {e}")
-    return False
+    target_id_str = str(q_id)
+    if firebase_initialized and db_firestore:
+        try:
+            db_firestore.collection('feedback_questions').document(target_id_str).delete()
+        except Exception as e:
+            logger.warning(f"Error deleting feedback question from Firebase: {e}")
+
+    if supabase_initialized and supabase_client:
+        try:
+            target_id = int(q_id) if str(q_id).isdigit() else q_id
+            supabase_client.table('feedback_questions').delete().eq('id', target_id).execute()
+        except Exception:
+            pass
+    return True
 
 def save_feedback_response(user_id, question_id, rating, comment=None):
-    if not supabase_initialized or not supabase_client:
-        return None
-    try:
-        r_dict = {
-            'user_id': user_id,
-            'question_id': question_id,
-            'rating': rating,
-            'comment': comment,
-            'created_at': datetime.utcnow().isoformat()
-        }
-        res = supabase_client.table('feedback_responses').insert(r_dict).execute()
-        if res.data and len(res.data) > 0:
-            return SupabaseDoc(res.data[0])
-        return SupabaseDoc(r_dict)
-    except Exception as e:
-        logger.error(f"Error saving feedback response: {e}")
-        return None
+    r_id = get_next_id('feedback_responses')
+    r_dict = {
+        'id': r_id,
+        'user_id': user_id,
+        'question_id': question_id,
+        'rating': rating,
+        'comment': comment,
+        'created_at': datetime.utcnow().isoformat()
+    }
+    if firebase_initialized and db_firestore:
+        save_firestore_doc('feedback_responses', r_dict)
+
+    if supabase_initialized and supabase_client:
+        try:
+            supabase_client.table('feedback_responses').insert(r_dict).execute()
+        except Exception:
+            pass
+
+    return SupabaseDoc(r_dict)
 
 def get_all_feedback_responses():
     if not supabase_initialized or not supabase_client:
@@ -1473,59 +1645,39 @@ def get_site_settings():
     if _site_settings_cache and _site_settings_cache_time and (now - _site_settings_cache_time).total_seconds() < 10:
         return _site_settings_cache
 
-    local_data = load_local_settings()
-    auto_snap = local_data.get('auto_snapshot_enabled', True)
-    intro_vid_url = local_data.get('intro_video_url', '')
-    intro_vid_enabled = local_data.get('intro_video_enabled', True)
-
     default_settings = SupabaseDoc({
         'id': 1,
         'site_title': 'YASH WORLD',
         'site_tagline': 'Private Messaging Platform',
         'welcome_message': '',
-        'auto_snapshot_enabled': auto_snap,
-        'intro_video_url': intro_vid_url,
-        'intro_video_enabled': intro_vid_enabled
+        'auto_snapshot_enabled': True,
+        'intro_video_url': '',
+        'intro_video_enabled': True
     })
 
-    if not supabase_initialized or not supabase_client:
-        _site_settings_cache = default_settings
-        _site_settings_cache_time = now
-        return default_settings
+    if firebase_initialized and db_firestore:
+        try:
+            fs_s = fetch_firestore_collection('site_settings')
+            if fs_s:
+                _site_settings_cache = SupabaseDoc(fs_s[0])
+                _site_settings_cache_time = now
+                return _site_settings_cache
+        except Exception:
+            pass
 
-    try:
-        res = supabase_client.table('site_settings').select('*').eq('id', 1).limit(1).execute()
-        if res.data and len(res.data) > 0:
-            doc_data = res.data[0]
-            doc_data['auto_snapshot_enabled'] = bool(doc_data.get('auto_snapshot_enabled', auto_snap))
-            doc_data['intro_video_url'] = doc_data.get('intro_video_url') if doc_data.get('intro_video_url') is not None else intro_vid_url
-            doc_data['intro_video_enabled'] = bool(doc_data.get('intro_video_enabled', intro_vid_enabled))
-            _site_settings_cache = SupabaseDoc(doc_data)
-            _site_settings_cache_time = now
-            return _site_settings_cache
-        else:
-            s_dict = {
-                'id': 1,
-                'site_title': 'YASH WORLD',
-                'site_tagline': 'Private Messaging Platform',
-                'welcome_message': '',
-                'auto_snapshot_enabled': auto_snap,
-                'intro_video_url': intro_vid_url,
-                'intro_video_enabled': intro_vid_enabled,
-                'created_at': datetime.utcnow().isoformat()
-            }
-            try:
-                supabase_client.table('site_settings').upsert(s_dict).execute()
-            except Exception:
-                pass
-            _site_settings_cache = SupabaseDoc(s_dict)
-            _site_settings_cache_time = now
-            return _site_settings_cache
-    except Exception as e:
-        logger.error(f"Error fetching site settings: {e}")
-        _site_settings_cache = default_settings
-        _site_settings_cache_time = now
-        return default_settings
+    if supabase_initialized and supabase_client:
+        try:
+            res = supabase_client.table('site_settings').select('*').eq('id', 1).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                _site_settings_cache = SupabaseDoc(res.data[0])
+                _site_settings_cache_time = now
+                return _site_settings_cache
+        except Exception:
+            pass
+
+    _site_settings_cache = default_settings
+    _site_settings_cache_time = now
+    return default_settings
 
 def save_site_settings(title, tagline, welcome, auto_snapshot_enabled=True, intro_video_url='', intro_video_enabled=True):
     global _site_settings_cache, _site_settings_cache_time
@@ -1534,12 +1686,6 @@ def save_site_settings(title, tagline, welcome, auto_snapshot_enabled=True, intr
 
     auto_snap_bool = bool(auto_snapshot_enabled)
     intro_vid_bool = bool(intro_video_enabled)
-
-    save_local_settings({
-        'auto_snapshot_enabled': auto_snap_bool,
-        'intro_video_url': intro_video_url or '',
-        'intro_video_enabled': intro_vid_bool
-    })
 
     s_dict = {
         'id': 1,
@@ -1552,17 +1698,15 @@ def save_site_settings(title, tagline, welcome, auto_snapshot_enabled=True, intr
         'updated_at': datetime.utcnow().isoformat()
     }
 
+    if firebase_initialized and db_firestore:
+        save_firestore_doc('site_settings', s_dict)
+
     if supabase_initialized and supabase_client:
         try:
-            res = supabase_client.table('site_settings').upsert(s_dict).execute()
-            if res.data and len(res.data) > 0:
-                s_dict = res.data[0]
+            supabase_client.table('site_settings').upsert(s_dict).execute()
         except Exception as ex:
-            logger.warning(f"Note saving site settings to Supabase: {ex}. Falling back to local storage...")
+            logger.warning(f"Note saving site settings to Supabase: {ex}")
 
-    s_dict['auto_snapshot_enabled'] = auto_snap_bool
-    s_dict['intro_video_url'] = intro_video_url or ''
-    s_dict['intro_video_enabled'] = intro_vid_bool
     _site_settings_cache = SupabaseDoc(s_dict)
     _site_settings_cache_time = datetime.utcnow()
     return _site_settings_cache
@@ -1621,22 +1765,7 @@ def upload_file_to_supabase(file, media_type='image'):
         else:
             content_type = content_type or 'video/mp4'
 
-    # 1. Try uploading to Supabase Storage first
-    if supabase_initialized and supabase_client:
-        try:
-            supabase_client.storage.from_(supabase_bucket_name).upload(
-                path=unique_name,
-                file=file_bytes,
-                file_options={"content-type": content_type or 'application/octet-stream', "x-upsert": "true"}
-            )
-            public_url = supabase_client.storage.from_(supabase_bucket_name).get_public_url(unique_name)
-            if public_url:
-                logger.info(f"✅ Supabase Storage upload verified: {public_url}")
-                return public_url, filename
-        except Exception as e:
-            logger.warning(f"⚠️ Supabase Storage upload notice: {e}")
-
-    # 2. Try uploading to Firebase Storage
+    # 1. Try uploading to Firebase Storage first
     if firebase_initialized and firebase_bucket:
         try:
             blob = firebase_bucket.blob(unique_name)
@@ -1655,6 +1784,21 @@ def upload_file_to_supabase(file, media_type='image'):
                 return public_url, filename
         except Exception as e:
             logger.warning(f"⚠️ Firebase Storage upload notice: {e}")
+
+    # 2. Try uploading to Supabase Storage secondary
+    if supabase_initialized and supabase_client:
+        try:
+            supabase_client.storage.from_(supabase_bucket_name).upload(
+                path=unique_name,
+                file=file_bytes,
+                file_options={"content-type": content_type or 'application/octet-stream', "x-upsert": "true"}
+            )
+            public_url = supabase_client.storage.from_(supabase_bucket_name).get_public_url(unique_name)
+            if public_url:
+                logger.info(f"✅ Supabase Storage upload verified: {public_url}")
+                return public_url, filename
+        except Exception as e:
+            logger.warning(f"⚠️ Supabase Storage upload notice: {e}")
 
     # Fallback: Save directly to local static uploads directory
     try:
@@ -2853,10 +2997,10 @@ def delete_reel(reel_id):
 # SEEDING & DEFAULTS INITIALIZATION
 # ============================================================
 
-def seed_supabase_defaults():
-    # 0. Sync local SQLite yash_world.db to Supabase PostgreSQL (one-time safe sync)
-    sync_sqlite_to_supabase()
-    if not supabase_initialized or not supabase_client:
+def seed_firebase_defaults():
+    # 0. Sync local SQLite yash_world.db to Firebase Firestore (one-time safe sync)
+    sync_sqlite_to_firebase()
+    if not firebase_initialized or not db_firestore:
         return
     try:
         # 1. Admin User
@@ -2864,26 +3008,28 @@ def seed_supabase_defaults():
         admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
         if not get_user_by_username(admin_username):
             save_user({
+                'id': 1,
                 'username': admin_username,
                 'password_hash': generate_password_hash(admin_password),
                 'is_admin': True,
                 'is_friend': True,
                 'created_at': datetime.utcnow().isoformat()
             })
-            logger.info(f"✅ Created default Supabase Admin user: {admin_username}")
+            logger.info(f"✅ Created default Firebase Admin user: {admin_username}")
 
         # 2. Friend User
         friend_username = os.environ.get('FRIEND_USERNAME', 'Glory')
         friend_password = os.environ.get('FRIEND_PASSWORD', 'lory')
         if not get_user_by_username(friend_username):
             save_user({
+                'id': 2,
                 'username': friend_username,
                 'password_hash': generate_password_hash(friend_password),
                 'is_admin': False,
                 'is_friend': True,
                 'created_at': datetime.utcnow().isoformat()
             })
-            logger.info(f"✅ Created default Supabase Friend user: {friend_username}")
+            logger.info(f"✅ Created default Firebase Friend user: {friend_username}")
 
         # 3. Default Settings
         get_site_settings()
@@ -2900,23 +3046,23 @@ def seed_supabase_defaults():
             ]
             for q in default_qs:
                 save_feedback_question(q)
-            logger.info("✅ Seeded default Supabase feedback questions")
+            logger.info("✅ Seeded default Firebase feedback questions")
 
         # 5. Default Typing Text Message
         if not get_active_typing_text():
             birthday_msg = "Happy Birthday 🎂❤️ Wishing you happiness, peace, and success always. I hope you’re happy with the new people in your life and make beautiful memories with them. Take care and stay happy. 🤍"
             save_typing_text(birthday_msg, is_active=True)
-            logger.info("✅ Seeded default Supabase typing text message")
+            logger.info("✅ Seeded default Firebase typing text message")
 
     except Exception as e:
-        logger.error(f"Error seeding Supabase defaults: {e}")
+        logger.error(f"Error seeding Firebase defaults: {e}")
 
 # Seed defaults asynchronously in a background thread to ensure instant Gunicorn boot
 import threading
 try:
-    threading.Thread(target=seed_supabase_defaults, daemon=True).start()
+    threading.Thread(target=seed_firebase_defaults, daemon=True).start()
 except Exception as e:
-    logger.error(f"Error in seed_supabase_defaults background launch: {e}")
+    logger.error(f"Error in seed_firebase_defaults background launch: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
