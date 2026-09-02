@@ -259,17 +259,20 @@
         <!-- Direct Media Upload Section -->
         <div class="form-section" style="border-left: 4px solid #4f7cff;">
             <div class="form-section-title">
-                <h4>🖼️ Question Media (Direct Device Upload)</h4>
+                <h4>🖼️ Question Media (Device File Upload or Direct URL)</h4>
                 <span class="badge badge-optional">Optional</span>
             </div>
             
-            <div class="form-row" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+            <div class="form-row" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
                 <div class="form-group">
                     <label for="image">🖼️ Select Image File</label>
                     <div class="file-input-wrapper">
                         <input type="file" id="image" name="image" accept="image/*" onchange="previewMedia(this, 'image_preview')">
                     </div>
                     <img id="image_preview" class="media-preview" style="max-height: 150px; margin-top: 10px; border-radius: 10px;" />
+                    <div style="margin-top: 8px;">
+                        <input type="url" id="image_url" name="image_url" placeholder="Or paste Image URL (e.g. https://...)" style="font-size: 13px; padding: 10px 14px;">
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -277,12 +280,19 @@
                     <div class="file-input-wrapper">
                         <input type="file" id="video" name="video" accept="video/*">
                     </div>
+                    <div style="margin-top: 8px;">
+                        <input type="url" id="video_url" name="video_url" placeholder="Or paste Video URL (e.g. https://...)" style="font-size: 13px; padding: 10px 14px;">
+                    </div>
+                    <div class="helper-text" style="font-size: 11px; color: #718096; margin-top: 4px;">⚡ For large phone videos (>20MB), paste a Video URL for instant sub-second upload.</div>
                 </div>
 
                 <div class="form-group">
                     <label for="audio">🎵 Select Audio File</label>
                     <div class="file-input-wrapper">
                         <input type="file" id="audio" name="audio" accept="audio/*">
+                    </div>
+                    <div style="margin-top: 8px;">
+                        <input type="url" id="audio_url" name="audio_url" placeholder="Or paste Audio URL (e.g. https://...)" style="font-size: 13px; padding: 10px 14px;">
                     </div>
                 </div>
             </div>
@@ -303,14 +313,17 @@
             
             <div style="border-top: 1px solid rgba(0,0,0,0.06); padding-top: 16px; margin-top: 16px;">
                 <p style="color: #718096; font-size: 13px; margin-bottom: 12px; font-weight: 600;">
-                    Answer Media Files (Direct Upload):
+                    Answer Media Files or Direct URLs:
                 </p>
                 
-                <div class="form-row" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                <div class="form-row" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
                     <div class="form-group">
                         <label for="answer_image">🖼️ Answer Image File</label>
                         <div class="file-input-wrapper">
                             <input type="file" id="answer_image" name="answer_image" accept="image/*">
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <input type="url" id="answer_image_url" name="answer_image_url" placeholder="Or paste Answer Image URL..." style="font-size: 13px; padding: 10px 14px;">
                         </div>
                     </div>
 
@@ -319,12 +332,18 @@
                         <div class="file-input-wrapper">
                             <input type="file" id="answer_video" name="answer_video" accept="video/*">
                         </div>
+                        <div style="margin-top: 8px;">
+                            <input type="url" id="answer_video_url" name="answer_video_url" placeholder="Or paste Answer Video URL..." style="font-size: 13px; padding: 10px 14px;">
+                        </div>
                     </div>
                     
                     <div class="form-group">
                         <label for="answer_audio">🎵 Answer Audio File</label>
                         <div class="file-input-wrapper">
                             <input type="file" id="answer_audio" name="answer_audio" accept="audio/*">
+                        </div>
+                        <div style="margin-top: 8px;">
+                            <input type="url" id="answer_audio_url" name="answer_audio_url" placeholder="Or paste Answer Audio URL..." style="font-size: 13px; padding: 10px 14px;">
                         </div>
                     </div>
                 </div>
