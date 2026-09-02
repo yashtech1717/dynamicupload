@@ -135,6 +135,17 @@ def init_firebase():
             firebase_bucket = storage.bucket()
             firebase_initialized = True
             logger.info("🔥 Firebase Storage & Firestore initialized successfully!")
+
+            # Eagerly pre-warm gRPC C-extensions to prevent importlib module lock deadlocks in worker threads
+            try:
+                import grpc
+                try:
+                    from grpc import _plugin_wrapping
+                except Exception:
+                    pass
+            except Exception as ge:
+                logger.warning(f"Note pre-warming gRPC: {ge}")
+
             return True
     except Exception as e:
         logger.warning(f"⚠️ Firebase initialization warning: {e}")
@@ -1654,7 +1665,7 @@ def save_local_settings(data):
 def get_site_settings():
     global _site_settings_cache, _site_settings_cache_time
     now = datetime.utcnow()
-    if _site_settings_cache and _site_settings_cache_time and (now - _site_settings_cache_time).total_seconds() < 10:
+    if _site_settings_cache and _site_settings_cache_time and (now - _site_settings_cache_time).total_seconds() < 300:
         return _site_settings_cache
 
     default_settings = SupabaseDoc({
@@ -1687,9 +1698,10 @@ def get_site_settings():
         except Exception:
             pass
 
-    _site_settings_cache = default_settings
-    _site_settings_cache_time = now
-    return default_settings
+    if not _site_settings_cache:
+        _site_settings_cache = default_settings
+        _site_settings_cache_time = now
+    return _site_settings_cache
 
 def save_site_settings(title, tagline, welcome, auto_snapshot_enabled=True, intro_video_url='', intro_video_enabled=True):
     global _site_settings_cache, _site_settings_cache_time
