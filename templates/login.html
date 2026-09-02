@@ -323,8 +323,10 @@ document.addEventListener('DOMContentLoaded', function() {
         form.addEventListener('submit', function() {
             const btn = document.getElementById('loginBtn');
             if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<span>Signing In...</span> <span class="neu-btn-arrow">⏳</span>';
+                setTimeout(function() {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span>Signing In...</span> <span class="neu-btn-arrow">⏳</span>';
+                }, 10);
             }
         });
     }

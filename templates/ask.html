@@ -359,8 +359,10 @@ function previewMedia(input, previewId) {
 document.querySelector('form').addEventListener('submit', function() {
     const btn = document.getElementById('submit_btn');
     if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '⏳ Uploading Media & Saving Question...';
+        setTimeout(function() {
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Uploading Media & Saving Question...';
+        }, 10);
     }
 });
 </script>
