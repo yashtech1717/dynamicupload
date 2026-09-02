@@ -870,7 +870,9 @@ def save_local_question_order(ordered_ids):
     except Exception:
         pass
 
-def get_all_questions():
+def get_all_questions(force_refresh=False):
+    if force_refresh:
+        invalidate_cache('all_questions')
     def _fetch():
         questions_raw = []
         if firebase_initialized and db_firestore:
@@ -2092,18 +2094,20 @@ def logout():
 @login_required
 def dashboard():
     try:
-        all_questions = get_all_questions()
-        total_questions = len(all_questions)
-        
-        all_replies = get_all_replies()
-        total_replies_count = len(all_replies)
-        
         target_qid = request.args.get('qid')
         if target_qid:
+            all_questions = get_all_questions(force_refresh=True)
             for idx, q in enumerate(all_questions):
                 if str(getattr(q, 'id', '')) == str(target_qid):
                     session['current_question_index'] = idx
                     break
+        else:
+            all_questions = get_all_questions()
+
+        total_questions = len(all_questions)
+        
+        all_replies = get_all_replies()
+        total_replies_count = len(all_replies)
 
         current_index = session.get('current_question_index', 0)
         if total_questions == 0:
@@ -2274,14 +2278,6 @@ def ask_question():
         
         invalidate_cache('all_questions')
         saved_id = getattr(saved_doc, 'id', None) or q_data.get('id')
-        
-        all_q = get_all_questions()
-        if all_q and saved_id:
-            for idx, q in enumerate(all_q):
-                if str(getattr(q, 'id', '')) == str(saved_id):
-                    session['current_question_index'] = idx
-                    session.modified = True
-                    break
         
         flash('Question asked successfully!', 'success')
         return redirect(url_for('dashboard', qid=saved_id))
