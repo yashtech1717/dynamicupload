@@ -2291,6 +2291,14 @@ def ask_question():
         invalidate_cache('all_questions')
         saved_id = getattr(saved_doc, 'id', None) or q_data.get('id')
         
+        all_questions = get_all_questions(force_refresh=True)
+        if all_questions and saved_id:
+            for idx, q in enumerate(all_questions):
+                if str(getattr(q, 'id', '')) == str(saved_id):
+                    session['current_question_index'] = idx
+                    session.modified = True
+                    break
+        
         flash('Question asked successfully!', 'success')
         return redirect(url_for('dashboard', qid=saved_id))
     
