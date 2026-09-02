@@ -3078,13 +3078,11 @@ def seed_firebase_defaults():
     except Exception as e:
         logger.error(f"Error seeding Firebase defaults: {e}")
 
-# Seed defaults asynchronously in a background thread to ensure instant Gunicorn boot
-import threading
-try:
-    threading.Thread(target=seed_firebase_defaults, daemon=True).start()
-except Exception as e:
-    logger.error(f"Error in seed_firebase_defaults background launch: {e}")
-
+# Seed defaults safely only when app is run directly
 if __name__ == '__main__':
+    try:
+        seed_firebase_defaults()
+    except Exception as e:
+        logger.error(f"Error in seed_firebase_defaults launch: {e}")
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=True, host='0.0.0.0', port=port)
